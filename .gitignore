@@ -1,0 +1,48 @@
+# 秘密情報
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+*.key
+*.pem
+
+# バックアップ（番号付きの .bak2、.bak95b なども）
+*.bak
+*.bak.*
+*.bak[0-9a-z]*
+
+# Node
+node_modules/
+.vite/
+.svelte-kit/
+*.tsbuildinfo
+.eslintcache
+
+# Rust / Tauri
+/src-tauri/target/
+/src-tauri/gen/schemas/
+
+# ビルド成果物
+/dist/
+/dist-ssr/
+/coverage/
+*.pdb
+*.exe
+*.msi
+*.cdx.json
+
+# ログ
+*.log
+
+# エディタと道具
+.playwright-mcp/
+*.local
+*.sw?
+.idea
+.vscode/*
+!.vscode/extensions.json
+
+# OS
+.DS_Store
+Thumbs.db

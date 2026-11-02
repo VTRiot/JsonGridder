@@ -1,0 +1,134 @@
+{
+  "store": {
+    "name": "Sample Shop",
+    "currency": "USD",
+    "open": true
+  },
+  "products": [
+    {
+      "id": 1,
+      "product": "Wireless Mouse",
+      "category": "Accessories",
+      "price": 24.9,
+      "inStock": true,
+      "tags": [
+        "wireless",
+        "usb"
+      ],
+      "supplier": {
+        "name": "Northwind Supply",
+        "city": "Portland"
+      }
+    },
+    {
+      "id": 2,
+      "product": "Mechanical Keyboard",
+      "category": "Accessories",
+      "price": 89,
+      "inStock": true,
+      "tags": [
+        "rgb",
+        "usb"
+      ],
+      "supplier": {
+        "name": "Northwind Supply",
+        "city": "Portland"
+      }
+    },
+    {
+      "id": 3,
+      "product": "27-inch Monitor",
+      "category": "Displays",
+      "price": 219.5,
+      "inStock": true,
+      "tags": [
+        "4k",
+        "hdmi"
+      ],
+      "supplier": {
+        "name": "Lakeside Imports",
+        "city": "Chicago"
+      }
+    },
+    {
+      "id": 4,
+      "product": "USB-C Cable",
+      "category": "Cables",
+      "price": 9.99,
+      "inStock": true,
+      "tags": [
+        "usb",
+        "braided"
+      ],
+      "supplier": {
+        "name": "Example Parts Co.",
+        "city": "Austin"
+      }
+    },
+    {
+      "id": 5,
+      "product": "HDMI Cable",
+      "category": "Cables",
+      "price": 12.5,
+      "inStock": false,
+      "tags": [
+        "hdmi"
+      ],
+      "supplier": {
+        "name": "Example Parts Co.",
+        "city": "Austin"
+      }
+    },
+    {
+      "id": 6,
+      "product": "Laptop Stand",
+      "category": "Accessories",
+      "price": 34,
+      "inStock": true,
+      "tags": [
+        "aluminum"
+      ],
+      "supplier": {
+        "name": "Lakeside Imports",
+        "city": "Chicago"
+      }
+    }
+  ],
+  "orders": [
+    {
+      "orderId": "A-1001",
+      "customer": "Customer 1",
+      "total": 114,
+      "status": "shipped",
+      "items": 2
+    },
+    {
+      "orderId": "A-1002",
+      "customer": "Customer 2",
+      "total": 219.5,
+      "status": "pending",
+      "items": 1
+    },
+    {
+      "orderId": "A-1003",
+      "customer": "Customer 3",
+      "total": 9.99,
+      "status": "shipped",
+      "items": 1
+    },
+    {
+      "orderId": "A-1004",
+      "customer": "Customer 4",
+      "total": 59.95,
+      "status": "cancelled",
+      "items": 1
+    },
+    {
+      "orderId": "A-1005",
+      "customer": "Customer 5",
+      "total": 149,
+      "status": "pending",
+      "items": 1
+    }
+  ]
+}

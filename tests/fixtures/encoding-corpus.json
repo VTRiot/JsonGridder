@@ -1,0 +1,204 @@
+[
+  {
+    "name": "utf8 LF 2 字下げ 末尾改行",
+    "hex": "7b0a20202261223a20312e302c0a20202262223a2022e8a1a8220a7d0a",
+    "expected": {
+      "encoding": "utf8",
+      "bom": false,
+      "eol": "lf",
+      "indent": {
+        "kind": "spaces",
+        "count": 2
+      },
+      "finalNewline": true,
+      "roundTripOk": true,
+      "probable": false
+    }
+  },
+  {
+    "name": "utf8 CRLF タブ 末尾改行なし",
+    "hex": "7b0d0a092261223a20312e300d0a7d",
+    "expected": {
+      "encoding": "utf8",
+      "bom": false,
+      "eol": "crlf",
+      "indent": {
+        "kind": "tab"
+      },
+      "finalNewline": false,
+      "roundTripOk": true,
+      "probable": false
+    }
+  },
+  {
+    "name": "utf8 BOM CRLF 4 字下げ",
+    "hex": "efbbbf7b0d0a202020202261223a2022e8a1a8220d0a7d0d0a",
+    "expected": {
+      "encoding": "utf8",
+      "bom": true,
+      "eol": "crlf",
+      "indent": {
+        "kind": "spaces",
+        "count": 4
+      },
+      "finalNewline": true,
+      "roundTripOk": true,
+      "probable": false
+    }
+  },
+  {
+    "name": "utf8 1 行",
+    "hex": "7b2261223a312c2262223a5b312c325d7d",
+    "expected": {
+      "encoding": "utf8",
+      "bom": false,
+      "eol": "none",
+      "indent": {
+        "kind": "none"
+      },
+      "finalNewline": false,
+      "roundTripOk": true,
+      "probable": false
+    }
+  },
+  {
+    "name": "utf8 改行の混在",
+    "hex": "5b0d0a2020312c0a2020320a5d0a",
+    "expected": {
+      "encoding": "utf8",
+      "bom": false,
+      "eol": "mixed",
+      "indent": {
+        "kind": "spaces",
+        "count": 2
+      },
+      "finalNewline": true,
+      "roundTripOk": true,
+      "probable": false
+    }
+  },
+  {
+    "name": "utf8 CR",
+    "hex": "5b0d2020310d5d0d",
+    "expected": {
+      "encoding": "utf8",
+      "bom": false,
+      "eol": "cr",
+      "indent": {
+        "kind": "spaces",
+        "count": 2
+      },
+      "finalNewline": true,
+      "roundTripOk": true,
+      "probable": false
+    }
+  },
+  {
+    "name": "utf8 空のファイル",
+    "hex": "",
+    "expected": {
+      "encoding": "utf8",
+      "bom": false,
+      "eol": "none",
+      "indent": {
+        "kind": "none"
+      },
+      "finalNewline": false,
+      "roundTripOk": true,
+      "probable": false
+    }
+  },
+  {
+    "name": "utf16le BOM CRLF",
+    "hex": "fffe7b000d000a00200020002200610022003a0020002200688822000d000a007d000d000a00",
+    "expected": {
+      "encoding": "utf16Le",
+      "bom": true,
+      "eol": "crlf",
+      "indent": {
+        "kind": "spaces",
+        "count": 2
+      },
+      "finalNewline": true,
+      "roundTripOk": true,
+      "probable": false
+    }
+  },
+  {
+    "name": "utf16be BOM LF タブ",
+    "hex": "feff007b000a0009002200610022003a00200031000a007d",
+    "expected": {
+      "encoding": "utf16Be",
+      "bom": true,
+      "eol": "lf",
+      "indent": {
+        "kind": "tab"
+      },
+      "finalNewline": false,
+      "roundTripOk": true,
+      "probable": false
+    }
+  },
+  {
+    "name": "utf16le BOM なし",
+    "hex": "7b000a00200020002200610022003a0020002200688822000a007d000a00",
+    "expected": {
+      "encoding": "utf16Le",
+      "bom": false,
+      "eol": "lf",
+      "indent": {
+        "kind": "spaces",
+        "count": 2
+      },
+      "finalNewline": true,
+      "roundTripOk": true,
+      "probable": true
+    }
+  },
+  {
+    "name": "utf16be BOM なし",
+    "hex": "005b0031005d",
+    "expected": {
+      "encoding": "utf16Be",
+      "bom": false,
+      "eol": "none",
+      "indent": {
+        "kind": "none"
+      },
+      "finalNewline": false,
+      "roundTripOk": true,
+      "probable": true
+    }
+  },
+  {
+    "name": "shift_jis CRLF",
+    "hex": "7b0d0a202022955c223a202293fa967b220d0a7d0d0a",
+    "expected": {
+      "encoding": "shiftJis",
+      "bom": false,
+      "eol": "crlf",
+      "indent": {
+        "kind": "spaces",
+        "count": 2
+      },
+      "finalNewline": true,
+      "roundTripOk": true,
+      "probable": true
+    }
+  },
+  {
+    "name": "shift_jis 元に戻らないバイト列",
+    "hex": "5b22fa54225d0a",
+    "expected": {
+      "encoding": "shiftJis",
+      "bom": false,
+      "eol": "lf",
+      "indent": {
+        "kind": "none"
+      },
+      "finalNewline": true,
+      "roundTripOk": false,
+      "probable": true
+    }
+  }
+]

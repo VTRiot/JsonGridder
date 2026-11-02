@@ -1,0 +1,348 @@
+svelte-jsoneditor: このフォルダの出どころと、上流からの変更の記録
+
+上流: https://github.com/josdejong/svelte-jsoneditor
+土台: v3.13.0 (049a6b82535f73f9be1572b376800b759a8b8c36)
+重ねた変更: PR #585 i18n (head 2438365f2dae5ece4d033e903c452d15b86de1b9)
+  土台と head の差分を全行読み、外部通信、eval、ビルド時の実行が無いことを確かめた。
+
+取り込んだもの: LICENSE.md、src/lib/**（試験を含む）
+取り込まなかったもの: .github、.husky、src/routes、tools、examples、misc、static、
+  rollup.config.*、上流の package.json。依存は ../../package.json に移した。
+  src/lib/generated/.gitignore と .npmignore（生成物を git の外に置く設定のため）
+
+上流にあるファイルへの変更:
+  src/lib/components/modes/textmode/TextMode.svelte
+    テキストの表示で打ち終わりから約 300 ms の間に表示を切り替えると、エディタの画面の
+    更新が止まり、表示の切り替えも編集も効かなくなる不具合を直した。
+    onChangeCodeMirrorValue の末尾の flushSync() を、tick() の後の emitOnSelect() に替えた。
+    原因: 切り替えの時、JSONEditorRoot の $: が Svelte の更新の最中に flush() を呼ぶ。
+    そこから flushSync() が入れ子で走り、Svelte 5.56.7 の Batch.flush が外側の更新の途中で
+    更新の状態を消す。枝が汚れたまま残り、以後の更新はその枝で捨てられる。
+    onDestroy の flush() と、外から mode を変える経路も同じ関数を通るので、ここ 1 か所で塞ぐ。
+    遅延中の入力を確定する順序（入力の履歴、表示の変更の履歴の順）は変えていない。
+    壊された後は onSelect を出さない（次の表示へテキストの選択を渡さないため）。
+
+  src/lib/components/modals/JSONEditorModal.svelte
+    入れ子のモーダルで、テキストの表示で打ってから約 300 ms の間に段を離れると、子の文字が
+    親の値を置き換える不具合と、Apply が打った文字を落とす不具合を直した。
+    原因: stack を変えた後に遅延中の入力が確定していた。段を下ろすと表示がテキストから親の
+    表示へ変わり、JSONEditorRoot の $: が flush() を呼ぶ。その onChange は下ろした後の親の段へ
+    子の文書を書く。Apply は確定の前の currentState.content を読んでいた。
+    段を離れる handleApply と handleClose の先頭で確定するように変えた。この 2 つが stack を
+    短くする全部で、Esc、戻る、閉じるボタン、枠の外の押下、Apply はここを通る。これにより
+    遅延中の Esc と戻るは、待ってから押した時と同じ状態になる。確定は Svelte の更新の外で
+    走り、flushSync は足していない。Apply は確定の後の last(stack) を読む。
+
+  src/lib/components/modes/JSONEditorRoot.svelte
+    上のために flush() を公開した。テキストの表示の flush() を呼ぶだけ。
+
+  データ保全の修正。上流へ出せる単位で分け、番号の順に読める。試験は各単位に書いた場所にある。
+  製品の包み（../../src/editor/）はこの記録の対象外。
+
+  1. 列の名前と継承の名前
+    src/lib/logic/table.ts
+    getColumns が素のオブジェクトへ列を集めていたので、キーが __proto__ だと Object.prototype へ
+    書き込み、toString や valueOf の列は継承のメソッドに当たって出なかった。原型の無いオブジェクトへ
+    集める。getCellValue を足し、表の描画は自前のキーだけを読む。
+    試験: logic/table.test.ts
+
+  2. 表の入力
+    src/lib/logic/operations.ts、src/lib/components/modes/tablemode/TableMode.svelte
+    キーの無いセルへの入力は捨てられ（replace が存在しないパスを無視する）、親か行がオブジェクトで
+    ないセルの入力は親の値を置き換えていた。
+    createNestedValueOperations: キーが無ければ親の補完と add にする。値が空か、canAddCellValue が
+    偽なら操作を出さない。
+    TableMode: セルの内側のパスで親のセルも選択扱いにしていたので、編集欄が 2 つ開いた。オブジェクトと
+    配列のセルに限る。編集の選択を refuseEditingCell で見張り、足せないセルでは編集欄を開かず理由を
+    出す。文言のキーは cellCannotAddKey（4 言語に足した）。貼り付けと打鍵の { [ も同じ経路を通す。切り取りと Delete は
+    値の無いセルで何もしない。文書が変わらない patch は履歴にも onChange にも載せない。
+    findNextInside は次の行に値が無くても下へ進む。
+    revertJSONPatchWithMoveOperations は、継承の名前を既存のキーと見なさない。
+    findRefusedKey を足し、表とツリーの handlePatch は、パーサが拒否するキーを作る操作を適用しない
+    （キーの改名、検索の置換、変換の結果）。理由は onError で渡す。公開の patch は同じ場合に例外を投げる。
+    src/lib/components/modes/treemode/JSONNode.svelte は、適用されなかった改名の選択を元のキーに保つ。
+    試験: logic/operations.test.ts、../../tests/unit/editor/tableInput.test.ts
+
+  3. セルを開いて閉じる
+    src/lib/components/controls/EditableDiv.svelte、EditableDiv.scss、
+    src/lib/plugins/value/components/EditableValue.svelte、
+    src/lib/components/modes/treemode/JSONKey.svelte
+    DOM の読み戻しは空白と改行を正規化するので、開いただけで値が変わることがあった。開いた直後に
+    読み戻した文字列と比べ、同じなら onChange でなく新しい onUnchanged で選択だけ動かす。
+    表のセルの white-space を pre-wrap にした。
+    試験: ../../tests/browser/editorFixes.mjs の untouched の群
+
+  4. 修復の停止と表示の切り替えの門番
+    src/lib/components/modes/tablemode/TableMode.svelte、treemode/TreeMode.svelte、
+    src/lib/components/modes/JSONEditorRoot.svelte、src/lib/components/JSONEditor.svelte、
+    src/lib/components/modals/JSONEditorModal.svelte、src/lib/types.ts
+    表とツリーの jsonrepair を外した。不正な文書は内容が変わる修復を通らず、parseError の表示になる。
+    修復はテキストの表示の明示のボタンだけになる。貼り付けの修復は 15 の範囲に狭めた。
+    上流へ出すときは既定で今の動作のままにする prop に分ける。
+    prop modeGuard を足し、JSONEditorRoot.checkMode に全経路を集めた（表示のボタン、メッセージの
+    ボタン、undo、redo、updateProps の mode、モーダルの中）。Promise の答えを待つ間は切り替えと
+    undo を受けず、内容が変わっていたら切り替えない。拒否された undo は履歴の位置を戻す。
+    試験: ../../tests/unit/editor/modeGuard.test.ts
+
+  5. 大文書の警告
+    src/lib/components/modes/textmode/TextMode.svelte
+    Cancel は文書を空にしていたのでボタンごと外した。Open anyway の読み込みは編集でないので履歴に
+    積まない。undo で文書が空になっていた。
+    試験: ../../tests/unit/editor/modeGuard.test.ts
+
+  6. Transform の数値
+    src/lib/plugins/query/preserveNumbers.ts（新規）
+    クエリ言語を包み、LosslessNumber の字面を保って動かす withLiteralNumbers。
+    plugins/query/jsonQueryLanguage.ts、types.ts、src/lib/i18n/locales/*
+    保てない数値は UnsafeNumber で運ぶ。そのまま通るだけなら元の字面へ戻る。プリミティブへの変換
+    （文字列化、キー化、計算）は例外で止まる。jsonquery の比較は typeof を見るのでオブジェクトは変換
+    されず黙って偽になる。比較、in、sort、uniq の値は executeQuery の第 4 引数 checkCompared へ
+    通す形にクエリを書き換えて止める。文言のキーは numberUnsafeInQuery（4 言語）。
+    試験: plugins/query/preserveNumbers.test.ts
+
+  7. Extract
+    prop allowExtract（既定 true）。表の案内とツリーの右クリックの入口を閉じられる。
+    src/lib/components/modes/tablemode/TableModeWelcome.svelte、
+    src/lib/components/modes/treemode/contextmenu/createTreeContextMenuItems.ts
+    試験: ../../tests/unit/editor/modeGuard.test.ts
+
+  8. 確定の公開、文書の置き換えの順序、遅延中の操作
+    src/lib/components/JSONEditor.svelte、JSONEditorRoot.svelte、TableMode.svelte、TreeMode.svelte、
+    TextMode.svelte、src/lib/components/modes/treemode/JSONValue.svelte
+    commitPendingInput を公開した。テキストの遅延中の入力と、表とツリーの編集中の値を同期で確定する。
+    窓のフォーカスに関わらない。
+    set、update、updateProps の content、patch の先頭で確定し、set は渡された文書を残す。今までは
+    壊される表示の確定が onChange で古い文書を書き戻した。set はモードも受ける。
+    文書を置き換えるときに Sort、Transform、セルのモーダルを閉じて捨てる。Apply が古い文書を書き戻す
+    ため。同じ content を渡す update は閉じない。
+    patch の後に content を更新する。更新しないと次の更新で patch が消えた。
+    テキストの整形、圧縮、修復、並べ替え、変換の先頭で flush する。
+    onError の既定の alert を外し、表にも onError を渡した。値の描画の例外はそのセルで受ける。
+    これらの公開の関数は flushSync を使うので、onChange の中から呼ばない。TextMode.flush と
+    JSONEditorRoot の $: の経路には flushSync を足していない。
+    試験: ../../tests/unit/editor/commit.test.ts、errors.test.ts
+
+  9. 古い選択
+    src/lib/logic/selection.ts、TableMode.svelte、TreeMode.svelte
+    表示が開くとき、clearSelectionWhenNotExisting が消した選択を、applyExternalSelection が古い prop
+    から書き戻し、ツリーの onMount の expandPath が例外を出して画面の更新が止まった。existsIn は継承の
+    名前と文字列の length も存在と数える。自前のキーと配列の範囲だけを見る
+    selectionExistsInDocument に替え、行き先の無い選択を採らない。
+    試験: logic/selection.test.ts、../../tests/browser/editorFixes.mjs の selection の群
+
+  10. 入れ子のモーダルの履歴
+    src/lib/logic/history.ts、src/lib/components/modals/JSONEditorModal.svelte、JSONEditorRoot.svelte
+    段の切り替えは文書の変更として履歴に積まれ、undo が親の文書を子の文書で置き換えていた。
+    履歴を段ごとに保存して戻す（snapshot、restore）。Apply は親の元の内容へ下ろして履歴を戻してから
+    親を更新するので、親の 1 つの編集になる。
+    試験: logic/history.test.ts、../../tests/unit/editor/modalHistory.test.ts
+
+  11. 値の有無の定義を 1 つにする
+    src/lib/logic/selection.ts、table.ts、operations.ts、search.ts、sort.ts、actions.ts、
+    src/lib/components/modes/tablemode/TableMode.svelte、
+    tablemode/contextmenu/createTableContextMenuItems.ts
+    readDocument（自前のキーと配列の範囲）を唯一の定義にし、pathExistsInDocument、getInDocument、
+    getCellValue、canAddCellValue はこれを読む。配列の要素のセルは値が見えて編集できる。
+    表の読み（Enter、Enforce string、コピー、検索、置換、並べ替えのキー）を getIn から替えた。
+    getIn は継承の関数を読み、検索が当たり、関数の文字列が文書へ書かれていた。
+    値の無いセルは検索に当たらず、Enforce string が押せない。
+    試験: ../../tests/unit/editor/cellValues.test.ts、logic/table.test.ts、logic/search.test.ts
+
+  12. 配列の末尾の "-"
+    src/lib/logic/jsonPatch.ts（新規。immutable-json-patch 6.0.3 の immutableJSONPatch と
+    revertJSONPatch の写し。ISC）、これを読むように documentState.ts、actions.ts、selection.ts、
+    sort.ts、operations.ts、plugins/validator/createAjvValidator.ts、TableMode.svelte、
+    TreeMode.svelte、TextMode.svelte、JSONEditorModal.svelte を替えた。
+    上流の resolvePathIndex は親がオブジェクトでも末尾の "-" を parent.length に置き換えるので、
+    キー "-" に触れず、値が "undefined" のキーへ書かれた。親が配列のときだけ解く。
+    試験: logic/jsonPatch.test.ts、../../tests/unit/editor/cellValues.test.ts
+
+  13. オブジェクトの判定
+    src/lib/utils/typeUtils.ts
+    value.constructor を見ていたので、キー constructor を持つオブジェクトがオブジェクトでなくなった。
+    原型の鎖で見る。別の realm のオブジェクトは今までどおりオブジェクトである。
+    試験: utils/typeUtils.test.ts、../../tests/unit/editor/textOnly.test.ts
+
+  14. 編集欄
+    src/lib/components/controls/EditableDiv.svelte、
+    src/lib/plugins/value/components/EditableValue.svelte、
+    src/lib/components/modes/treemode/JSONKey.svelte、JSONValue.svelte、TableMode.svelte、
+    TreeMode.svelte、src/lib/types.ts
+    innerText の書き込みは CR を改行へ畳むので textContent で書く。これで CR と制御文字が編集欄の
+    中で元のまま残り、escapeControlCharacters は要らなくなった（上流の既定の false に戻した）。
+    値が同じまま離れると closed だけが立ち、編集欄が開いたまま閉じた扱いになり、後の入力が消えて、
+    並べ替えの後は別の行へ書かれた。新しい onLeaveEdit が編集の選択を解く。選択が既に別の場所へ
+    移っていれば何もしない。Enter でも値が同じなら変更として扱わない。
+    表は画面の外の行を描かないので、打鍵と Enter で先に行を画面へ戻す。commitEdit は描画を待つ。
+    試験: ../../tests/unit/editor/cellValues.test.ts、../../tests/browser/editorFixes.mjs の
+    literal、leave、offScreen の群
+
+  15. 貼り付け
+    src/lib/logic/operations.ts、actions.ts
+    1 つの値への貼り付けは、正しい JSON なら値、それ以外は貼ったままの文字列にする。修復と { } の
+    包みで普通の文が配列になり、空白が {} になっていた。修復は文書全体の貼り付けに限る。
+    空白だけは文字列のまま入り、文書全体は置き換えない。空のクリップボードは何もしない。
+    createNestedValueOperations は "" も足す。無入力の確定は編集欄の側で止まる。
+    上流へ出すときは既定で今の動作のままにする prop に分ける。
+    試験: logic/operations.test.ts、../../tests/unit/editor/cellValues.test.ts
+
+  16. 門番の待ち
+    src/lib/components/modes/JSONEditorRoot.svelte、src/lib/components/modals/JSONEditorModal.svelte
+    checkingMode を公開し、モーダルは待つ間 Back と Apply と閉じる操作を受けない。答えの時に履歴が
+    待ち始めと違えば、拒否の戻しをしない。戻しが別の履歴や打鍵の項目を動かしていた。
+    viewHistory を $: からマークアップの式へ替えた。$: では applyExternalMode の history.add の後に
+    更新されず、切り替えの直後の undo と redo の表示が古いままだった。
+    試験: ../../tests/unit/editor/guardWait.test.ts
+
+  17. スクロールと編集
+    src/lib/logic/table.ts、src/lib/components/modes/tablemode/TableMode.svelte、
+    src/lib/components/modes/treemode/TreeMode.svelte
+    編集中の行は keepRowRendered で画面の外でも描画に残す。行は本来の位置に置き、間は空の行で
+    埋めるので、見える行は動かない。行の each にキーを付け、編集欄が別の行の DOM へ移らない。
+    スクロールバーを押しても編集は終わらない。編集欄が閉じてフォーカスの行き先が無いときは、
+    表とツリーがフォーカスを取り戻す。
+    試験: logic/table.test.ts、../../tests/unit/editor/cellValues.test.ts、
+    ../../tests/browser/editorFixes.mjs の scrollKeepsEdit の群
+
+  18. 値の選択へ打つ括弧
+    src/lib/logic/actions.ts
+    値の選択では { と [ も普通の文字で、編集を始める。上流は値を空のオブジェクトか配列へ
+    置き換え、続きの文字を捨てていた。オブジェクトや配列の値へ打った文字は他の文字と同じく
+    何もしない。挿入の位置の選択と空の文書の { と [ は、構造の挿入のまま。
+    試験: ../../tests/unit/editor/cellValues.test.ts、../../tests/browser/editorFixes.mjs の
+    brackets の群
+
+  19. 一意の名前
+    src/lib/logic/search.ts、operations.ts
+    すべて置換はキーの改名を置換の前の文書のキーで判定していたので、置換で 2 つのキーが同じ
+    名前になると、2 回目の move が 1 回目の値を上書きした。置換の途中のキーを親ごとに持つ。
+    insertBefore、append、replace、duplicate も複数の値へ同じ名前を渡せたので、渡した名前を
+    次の判定に数える。
+    試験: logic/search.test.ts、logic/operations.test.ts
+
+  20. 入れ子のキーの移動の undo
+    src/lib/logic/operations.ts
+    _filterRedundantMoveOperations が親でなく根のキーを読み、undo の操作が /n/undefined などに
+    なって順序が戻らなかった。親のキーを読む。順序が変わらないときは move を作らない。
+    試験: logic/operations.test.ts
+
+  21. クエリの関数の差し替え
+    src/lib/plugins/query/jsonQueryLanguage.ts、preserveNumbers.ts、src/lib/types.ts、
+    src/lib/i18n/locales/ の 4 言語
+    keyBy、groupBy、uniqBy、mapKeys、mapObject、mapValues、pick を jsonquery の functions の
+    オプションで差し替えた。組み込みはキーを普通のオブジェクトへ書くので、値が toString や
+    constructor の行が消え、__proto__ のキーが値ごと消え、groupBy は例外を出した。組み込みの
+    uniqBy は実行時にコンパイルするので、クエリへ足した関数が見えなかった。
+    uniqBy は値で比べるので 1 と "1"、別のオブジェクトを同じと見なさず、行の順序も保つ。
+    オブジェクトと配列をキーにすると止まる。mapKeys、mapObject、pick でキーがぶつかると止まる。
+    keyBy の本当の重複は上流どおり最初の行を残す。
+    クエリの字句を読み、キー __proto__ を書いたクエリと、1 つのオブジェクトに同じキーを 2 回
+    書いたクエリは止まる。パーサが普通のオブジェクトへ書くので、パースの後では見えない。
+    試験: plugins/query/preserveNumbers.test.ts、../../tests/browser/editorFixes.mjs の
+    queryLoss の群
+
+  22. クエリの数値
+    src/lib/plugins/query/jsonQueryLanguage.ts、preserveNumbers.ts、src/lib/types.ts
+    executeQuery の第 4 引数を QueryGuard へ替えた。checkCompared に加えて、計算の結果を見る
+    checkCalculated と、クエリに書いた数値を字面で見る checkNumberLiteral を持つ。
+    計算の結果が安全な整数の範囲を出たら途中でも止まる。クエリに書いた保てない数値は字句を読んで
+    止まる。作成の案内は長い数値の桁をクエリの文に残す。
+    試験: plugins/query/preserveNumbers.test.ts、../../tests/browser/editorFixes.mjs の
+    queryLoss の群
+
+  23. 門番の待ちの履歴
+    src/lib/components/modes/JSONEditorRoot.svelte
+    undo と redo は履歴を進めてから門番へ来る。待つ間は進める前の履歴へ戻し、許されたときに
+    進め直す。進めたまま打鍵が入ると history.add が表示の項目を捨て、別の表示の項目がテキストの
+    下へ直接つながり、redo が適用済みの patch をもう一度当てた。
+    試験: ../../tests/unit/editor/guardWait.test.ts、../../tests/browser/editorFixes.mjs の
+    undoWait の群
+
+  24. 文言の辞書化と取り違えの修正（step5_001）
+    src/lib/types.ts、src/lib/i18n/index.ts、src/lib/i18n/locales/english.ts、
+    src/lib/i18n/index.test.ts、src/lib/logic/table.ts、src/lib/logic/operations.ts、
+    src/lib/components/ 以下の 15 ファイル（StatusBar、ColumnHeader、CopyPasteModal、
+    ValidationErrorsOverview、NavigationBarPathEditor、CollapsedItems、Welcome、
+    TableModeWelcome、TableMode、TreeMode、JSONEditorRoot、JSONEditorModal、TransformModal、
+    ColorPickerPopup、TextMode）、src/lib/plugins/value/components/ReadonlyValue.svelte、
+    contextmenu/createTreeContextMenuItems.ts、createTableContextMenuItems.ts
+    直書きの英語を辞書のキーへ替えた。追加のキーは型で省略可にして、既存の 3 言語の辞書を
+    壊さない。追加: newItem、multipleValidationIssues、clickToSortColumn、currentlySortedIn、
+    statusLine、statusColumn、statusSelection、copied、andMoreErrors、validationErrorsCount、
+    clipboardPermissionDisabled、forCopy、forCut、forPaste、close、welcomePasteBefore、
+    welcomePasteAfter、createObjectTitle、createArrayTitle、itemsRange、showRange、showMore、
+    colorPickerInputLabel、queryDescriptionJsonquery、typeObject ほか型名 6 つ。
+    Language に省略可の phrases を足し、TextMode の CodeMirror が EditorState.phrases として
+    Compartment で受ける（言語を替えても編集画面を作り直さない）。色選択の vanilla-picker は
+    template で Ok、Cancel、入力欄の aria-label を差し替える。TransformModal は JSON Query の
+    説明を辞書から引く。{{mode}}、{{content}}、{{valueType}} に入る型名と表示名も辞書から引く。
+    取り違えの修正:
+      表の Welcome の「ツリーへ」のボタンが switchToTextMode を引いていた -> switchToTreeMode
+      ツリーの右クリックの「切り取り（圧縮）」が copyCompacted を引いていた -> cutCompacted
+      ツリーの右クリックの「コピー（整形）」が copyCompacted を引いていた -> copyFormatted
+      ツリーの複数行貼り付けの「そのままにする」の title が leaveAsIsTitle -> keepThePastedArray
+      ツリーの JSON 貼り付けの案内文が英語の直書きで、pastedJsonAsText を引かなかった
+    上流の不具合: 表の右クリックの「整形してコピー」が onCopy(false)（圧縮でコピー）を呼んでいた
+      -> onCopy(true)
+    試験: ../../tests/unit/i18nCoverage.test.ts、i18nWordingFixes.test.ts、
+    ../../tests/browser/language.mjs
+
+  src/lib/components/modes/tablemode/TableMode.svelte
+    検索の欄を開いたとき、見出しの下の背景の帯が最後の列の手前で切れる不具合を直した。
+    原因: 帯と前後の隙間の行の colspan が columns.length で、行番号の列（と更新の列）を数えて
+    いなかった。数を tableColumnCount（行番号の列 + 列 + 更新の列）に替えた。
+    検索の欄の undo / redo を SearchBox へ渡す（下の SearchBox の項）。
+
+  src/lib/components/modes/treemode/TreeMode.svelte
+    検索の欄の undo / redo を SearchBox へ渡すだけ（下の SearchBox の項）。
+
+  src/lib/components/controls/SearchBox.svelte
+    置換の後、検索の欄にフォーカスが残ると Ctrl+Z が文書へ届かず、全部の置換を戻せなかった。
+    原因: handleKeyDown が全てのキーの伝播を止める。ボタンにフォーカスがあると Ctrl+Z は誰にも
+    処理されない。onUndo / onRedo を足し、ボタンにフォーカスがあるとき、または置換の直後から
+    欄に打つまでの間は、Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y を文書の undo / redo へ回す。
+    欄に打っている間の Ctrl+Z は、これまでどおり欄の中の取り消し。全部の置換は 1 回の
+    onPatch なので、Ctrl+Z 1 回で置換の前へ戻る。
+    拒否された置換と一致の無い置換（onPatch の undo が空）では回さない。古い編集を誤って戻さないため。
+
+  src/lib/components/modes/textmode/TextMode.svelte（上の項に加えて）
+    Ctrl+H で検索の欄を開き、置換の欄へカーソルを置く（handleOpenReplace）。表とツリーの
+    Ctrl+H と同じ見つけやすさにするため。
+
+  src/lib/components/__snapshots__/JSONEditor.test.ts.snap
+    上の TableMode の colspan の変更に合わせ、表の帯の行の colspan を 2 から 3 へ更新した（2 か所）。
+
+  25. 右端で折り返すと列の幅のドラッグ（step9_007）
+    src/lib/components/modes/tablemode/tableLayout.ts（新規）
+      表示だけの状態を外から渡す store。wrapLines（折り返す）と columnWidths（ドラッグした
+      列の幅。キーは表の対象と列のパス）、resetColumnWidths、最小の幅 MIN_COLUMN_WIDTH（48px）。
+      上流へ出すときは prop に分ける。
+    src/lib/components/modes/tablemode/TableMode.svelte
+      wrapLines のとき根に jse-wrap-lines を付ける。列の見出しの右端に掴み（jse-column-resizer）を
+      置き、押下は表と窓の mousedown へ渡さない（選択と並べ替えに取り違えない）。ドラッグは
+      mouseup、ボタンの離れた mousemove（窓の外で離した）、窓の blur、onDestroy のどれでも終える。幅のある列の
+      見出しとセルに jse-column-sized と --jse-column-width を付ける。
+      折り返しとドラッグの幅が変わると itemHeightsCache を捨てる（描かれていない行の高さが古いため）。
+      scrollTo は、対象の行が描かれていなければ、先にその行を keepRowRendered で描いて
+      （scrollTargetRowIndex。編集中の行があればそちらが優先）次のフレームで測り、その要素へ飛ぶ。
+      飛んだ後、途中で測った行で対象がずれて見えていなければ、そこから直接合わせ直す（最大 6 回）。
+      折り返さないときは行の高さが揃っているので、最初の飛びで見えて合わせ直しは起きない。
+    src/lib/components/modes/tablemode/TableMode.scss
+      jse-wrap-lines: 値と編集欄を pre-wrap と overflow-wrap: anywhere で折り返し、幅の無い列は
+      内容に合わせて最大 360px、最後の列は width: 100% で窓の右端まで、表は幅 100%。
+      見出しは white-space: normal で折り返す。jse-column-sized: 値の箱をドラッグした幅に固定する。
+    値、選択、履歴には触らない。折り返しは表示の改行で、編集で読み戻す文字に改行は入らない。
+    ツリーとテキストは上流のまま、もとから窓の幅で折り返す（テキストは EditorView.lineWrapping）。
+    src/lib/components/__snapshots__/JSONEditor.test.ts.snap
+      列の見出しの掴み（jse-column-resizer）の div を 2 か所に足した。
+    試験: ../../tests/browser/wrap.mjs
+
+上流の生成物を置いたもの:
+  src/lib/generated/diffSequence.js
+    上流の tools/generateDiffSequenceEsm.js と同じ変換で、npm の diff-sequences 29.6.3
+    (build/index.js) から作った。ライセンスは MIT で、著作権表示はファイルの先頭に残る。
+    上流では npm install の時に作るが、ここでは prepare を実行しないので作って置く。
+  src/lib/generated/diffSequence.d.ts
+    上流の生成物は型の宣言として不正なので、同じ関数の型を declare で書いた。
+
+SHA256SUMS: このフォルダの各ファイルの SHA-256。CHANGES と SHA256SUMS 自身を除く。

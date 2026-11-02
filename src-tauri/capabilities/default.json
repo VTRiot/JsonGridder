@@ -1,0 +1,6 @@
+{
+  "identifier": "default",
+  "windows": ["main"],
+  "platforms": ["windows"],
+  "permissions": []
+}

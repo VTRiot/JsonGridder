@@ -1,0 +1,26 @@
+.app-targetbar {
+  flex: none;
+  padding: 2px 6px;
+  background: var(--app-surface);
+  border-bottom: 1px solid var(--app-border);
+}
+
+.app-targetbar[hidden] {
+  display: none;
+}
+
+.app-targetbar-button {
+  padding: 2px 6px;
+  border: 1px solid var(--app-border);
+  border-radius: 3px;
+  background: var(--app-bg);
+  color: var(--app-text);
+  font: 13px var(--jse-font-family);
+}
+
+.app-targetbar-button:hover,
+.app-targetbar-button:focus,
+.app-targetbar-button[aria-expanded='true'] {
+  outline: none;
+  background: var(--app-selection);
+}

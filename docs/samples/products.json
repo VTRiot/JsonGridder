@@ -1,0 +1,178 @@
+[
+  {
+    "id": 1,
+    "product": "Wireless Mouse",
+    "category": "Accessories",
+    "price": 24.9,
+    "inStock": true,
+    "tags": [
+      "wireless",
+      "usb"
+    ],
+    "supplier": {
+      "name": "Northwind Supply",
+      "city": "Portland"
+    }
+  },
+  {
+    "id": 2,
+    "product": "Mechanical Keyboard",
+    "category": "Accessories",
+    "price": 89,
+    "inStock": true,
+    "tags": [
+      "rgb",
+      "usb"
+    ],
+    "supplier": {
+      "name": "Northwind Supply",
+      "city": "Portland"
+    }
+  },
+  {
+    "id": 3,
+    "product": "27-inch Monitor",
+    "category": "Displays",
+    "price": 219.5,
+    "inStock": true,
+    "tags": [
+      "4k",
+      "hdmi"
+    ],
+    "supplier": {
+      "name": "Lakeside Imports",
+      "city": "Chicago"
+    }
+  },
+  {
+    "id": 4,
+    "product": "USB-C Cable",
+    "category": "Cables",
+    "price": 9.99,
+    "inStock": true,
+    "tags": [
+      "usb",
+      "braided"
+    ],
+    "supplier": {
+      "name": "Example Parts Co.",
+      "city": "Austin"
+    }
+  },
+  {
+    "id": 5,
+    "product": "HDMI Cable",
+    "category": "Cables",
+    "price": 12.5,
+    "inStock": false,
+    "tags": [
+      "hdmi"
+    ],
+    "supplier": {
+      "name": "Example Parts Co.",
+      "city": "Austin"
+    }
+  },
+  {
+    "id": 6,
+    "product": "Laptop Stand",
+    "category": "Accessories",
+    "price": 34,
+    "inStock": true,
+    "tags": [
+      "aluminum"
+    ],
+    "supplier": {
+      "name": "Lakeside Imports",
+      "city": "Chicago"
+    }
+  },
+  {
+    "id": 7,
+    "product": "Webcam",
+    "category": "Video",
+    "price": 59.95,
+    "inStock": false,
+    "tags": [
+      "1080p",
+      "usb"
+    ],
+    "supplier": {
+      "name": "Northwind Supply",
+      "city": "Portland"
+    }
+  },
+  {
+    "id": 8,
+    "product": "Desk Lamp",
+    "category": "Lighting",
+    "price": 27.25,
+    "inStock": true,
+    "tags": [
+      "led"
+    ],
+    "supplier": {
+      "name": "Sample Goods Ltd.",
+      "city": "Denver"
+    }
+  },
+  {
+    "id": 9,
+    "product": "Wireless Charger",
+    "category": "Power",
+    "price": 29,
+    "inStock": true,
+    "tags": [
+      "wireless",
+      "qi"
+    ],
+    "supplier": {
+      "name": "Sample Goods Ltd.",
+      "city": "Denver"
+    }
+  },
+  {
+    "id": 10,
+    "product": "Power Strip",
+    "category": "Power",
+    "price": 19.8,
+    "inStock": true,
+    "tags": [
+      "surge"
+    ],
+    "supplier": {
+      "name": "Example Parts Co.",
+      "city": "Austin"
+    }
+  },
+  {
+    "id": 11,
+    "product": "Noise-Cancelling Headset",
+    "category": "Audio",
+    "price": 149,
+    "inStock": false,
+    "tags": [
+      "bluetooth",
+      "anc"
+    ],
+    "supplier": {
+      "name": "Lakeside Imports",
+      "city": "Chicago"
+    }
+  },
+  {
+    "id": 12,
+    "product": "Portable SSD 1TB",
+    "category": "Storage",
+    "price": 99.99,
+    "inStock": true,
+    "tags": [
+      "usb",
+      "nvme"
+    ],
+    "supplier": {
+      "name": "Sample Goods Ltd.",
+      "city": "Denver"
+    }
+  }
+]

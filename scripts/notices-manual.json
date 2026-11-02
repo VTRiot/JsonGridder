@@ -1,0 +1,65 @@
+{
+  "editor": {
+    "name": "svelte-jsoneditor",
+    "version": "3.13.0 with pull request #585",
+    "license": "ISC",
+    "source": "https://github.com/josdejong/svelte-jsoneditor",
+    "authors": ["Jos de Jong"],
+    "note": "The editor source is included under vendor/svelte-jsoneditor with local changes, listed in vendor/svelte-jsoneditor/CHANGES."
+  },
+  "components": [
+    {
+      "name": "Microsoft WebView2 SDK (WebView2LoaderStatic.lib)",
+      "version": "as bundled with webview2-com-sys 0.39.1",
+      "license": "BSD-3-Clause-style license of Microsoft Corporation",
+      "source": "https://www.nuget.org/packages/Microsoft.Web.WebView2",
+      "authors": ["Microsoft Corporation"],
+      "licenseFile": "scripts/license-texts/Microsoft-WebView2-SDK.txt",
+      "note": "The WebView2 loader library is statically linked into the executable through the webview2-com-sys crate. The text is the LICENSE.txt of the Microsoft.Web.WebView2 package."
+    },
+    {
+      "name": "Font Awesome Free icons",
+      "version": "7.3.1",
+      "license": "CC-BY-4.0 (icons) AND MIT (code)",
+      "source": "https://fontawesome.com",
+      "authors": ["Fonticons, Inc."],
+      "licenseFile": "node_modules/@fortawesome/free-solid-svg-icons/LICENSE.txt",
+      "note": "Icons by Font Awesome (https://fontawesome.com), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Used through the @fortawesome/free-solid-svg-icons and @fortawesome/free-regular-svg-icons packages, listed below."
+    },
+    {
+      "name": "diff-sequences",
+      "version": "29.6.3",
+      "license": "MIT",
+      "source": "https://www.npmjs.com/package/diff-sequences/v/29.6.3",
+      "authors": ["Meta Platforms, Inc. and affiliates"],
+      "licenseFile": "node_modules/diff-sequences/LICENSE",
+      "note": "A build of this package is included in the editor as vendor/svelte-jsoneditor/src/lib/generated/diffSequence.js."
+    }
+  ],
+  "supplements": {
+    "alloc-stdlib": {
+      "sameAs": "alloc-no-stdlib",
+      "why": "The text is the LICENSE of alloc-no-stdlib, from the same repository (https://github.com/dropbox/rust-alloc-no-stdlib)."
+    },
+    "selectors": {
+      "file": "scripts/license-texts/MPL-2.0.txt",
+      "why": "The text is the standard Mozilla Public License 2.0. Source code: https://crates.io/crates/selectors/0.38.0 and https://github.com/servo/stylo."
+    },
+    "tauri-plugin": {
+      "sameAs": "tauri",
+      "why": "The texts are the license files of tauri, from the same repository (https://github.com/tauri-apps/tauri)."
+    },
+    "webview2-com": {
+      "file": "scripts/license-texts/webview2-rs-MIT.txt",
+      "why": "The text is the LICENSE of the repository https://github.com/wravery/webview2-rs."
+    },
+    "webview2-com-macros": {
+      "file": "scripts/license-texts/webview2-rs-MIT.txt",
+      "why": "The text is the LICENSE of the repository https://github.com/wravery/webview2-rs."
+    },
+    "webview2-com-sys": {
+      "file": "scripts/license-texts/webview2-rs-MIT.txt",
+      "why": "The text is the LICENSE of the repository https://github.com/wravery/webview2-rs. The Microsoft WebView2 SDK part is listed separately above."
+    }
+  }
+}

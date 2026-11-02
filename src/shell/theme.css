@@ -1,0 +1,277 @@
+/* 殻の CSS はこの変数だけを使う。色の値はこのファイルの 2 か所（ライトとダーク）に集める。
+   ライトとダークの地、タイトルバーの色は Rust 側（src-tauri/src/window.rs）の窓の色と揃える。 */
+:root {
+  color-scheme: light;
+
+  /* ライト（案 A 藤）。ごく薄い藤色の白の地に、パステルの薄紫をワンポイントに置く。 */
+  --app-frame: #eeeaf5;
+  --app-bg: #f7f5fb;
+  --app-surface: #eeeaf5;
+  --app-header: #eeeaf5;
+  --app-menu-bg: var(--app-surface);
+  --app-border: #d9d2e8;
+  --app-text: #2b2540;
+  --app-text-muted: #5e5378;
+  --app-accent: #b9a3e3;
+  --app-accent-text: #2b2540;
+  --app-selection: color-mix(in srgb, var(--app-accent) 35%, var(--app-bg));
+  --app-selection-inactive: #e6e1f0;
+  --app-hover: #e8e3f2;
+  --app-find: #f2d36b;
+  --app-find-text: #2b2540;
+  --app-error: #b3261e;
+  --app-success: #25682b;
+  --app-warning: #8a5300;
+  --app-notice-bg: #3a2f5c;
+  --app-notice-text: #ffffff;
+  --app-row-odd: #f1eef8;
+  --app-active-line: rgba(43, 37, 64, 0.05);
+  --app-overlay: rgba(43, 37, 64, 0.35);
+  --app-shadow: rgba(43, 37, 64, 0.25);
+
+  --app-json-key: #8a2f6a;
+  --app-json-string: #2a6636;
+  --app-json-number: #1f5fa8;
+  --app-json-boolean: #6b3fa0;
+  --app-json-null: #5e5378;
+
+  /* 桜の飾り。見た目で調整する定数。幅はエディタの幅に対する割合。ライトは濃く、ダークは薄く出す。 */
+  --sakura-width: 22%;
+  --sakura-opacity: 0.28;
+  /* ライトは乗算で重ねる。白い花びらが濃い文字を白く褪せさせず、補助の文字も 4.5 を保つ。 */
+  --sakura-blend: multiply;
+
+  --jse-font-family: 'Segoe UI', 'Yu Gothic UI', 'Meiryo UI', sans-serif;
+  --jse-font-family-mono: Consolas, 'BIZ UDGothic', 'MS Gothic', monospace;
+}
+
+/* ダーク。夜桜（深い紫紺の地、桜色の強調、提灯の金の検索）。 */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --app-frame: #14121f;
+  --app-bg: #181528;
+  --app-surface: #1c1830;
+  --app-header: #241e3a;
+  --app-menu-bg: var(--app-surface);
+  --app-border: #2e2848;
+  --app-text: #ece6f2;
+  --app-text-muted: #a69dbc;
+  --app-accent: #f29ab9;
+  --app-accent-text: var(--app-bg);
+  --app-selection: #3a2c4a;
+  --app-selection-inactive: #2a2240;
+  --app-hover: #2a2440;
+  --app-find: #e8c36a;
+  --app-find-text: var(--app-bg);
+  --app-error: #ff6f61;
+  --app-success: #5ee0a0;
+  --app-warning: #ffd166;
+  --app-notice-bg: #3b1f1c;
+  --app-notice-text: var(--app-text);
+  --app-row-odd: #1c1830;
+  --app-active-line: rgba(255, 255, 255, 0.06);
+  --app-overlay: rgba(0, 0, 0, 0.55);
+  --app-shadow: rgba(0, 0, 0, 0.5);
+
+  --app-json-key: #f2a8c8;
+  --app-json-string: #f0d79a;
+  --app-json-number: #7cc4ff;
+  --app-json-boolean: #c4a0ff;
+  --app-json-null: #a69dbc;
+
+  --sakura-opacity: 0.16;
+  --sakura-blend: normal;
+
+  /* エラーの帯の操作ボタン。地は明るい赤なので、暗くせず明るくして暗い文字との差を保つ。 */
+  --jse-message-action-background: rgba(255, 255, 255, 0.25);
+  --jse-message-action-background-highlight: rgba(255, 255, 255, 0.4);
+}
+
+/* エディタの CSS 変数を、上の役割へ結ぶ。ライトとダークで同じ結びを使い、値は上の役割が替える。 */
+:root {
+  --jse-theme-color: var(--app-surface);
+  --jse-theme-color-highlight: var(--app-selection);
+  --jse-background-color: var(--app-bg);
+  --jse-text-color: var(--app-text);
+  --jse-text-color-inverse: var(--app-bg);
+  --jse-text-readonly: var(--app-text-muted);
+
+  --jse-main-border: 1px solid var(--app-border);
+  --jse-menu-color: var(--app-text);
+  --jse-modal-background: var(--app-surface);
+  --jse-modal-overlay-background: var(--app-overlay);
+  --jse-modal-code-background: var(--app-bg);
+
+  --jse-tooltip-color: var(--app-text);
+  --jse-tooltip-background: var(--app-surface);
+  --jse-tooltip-border: 1px solid var(--app-border);
+  --jse-tooltip-action-button-color: var(--app-text);
+  --jse-tooltip-action-button-background: var(--app-selection);
+
+  --jse-panel-background: var(--app-surface);
+  --jse-panel-background-border: 1px solid var(--app-border);
+  --jse-panel-color: var(--app-text);
+  --jse-panel-color-readonly: var(--app-text-muted);
+  --jse-panel-border: 1px solid var(--app-border);
+  --jse-panel-button-color-highlight: var(--app-text);
+  --jse-panel-button-background-highlight: var(--app-selection);
+
+  --jse-navigation-bar-background: var(--app-selection-inactive);
+  --jse-navigation-bar-background-highlight: var(--app-selection);
+  --jse-navigation-bar-dropdown-color: var(--app-text);
+
+  --jse-context-menu-background: var(--app-surface);
+  --jse-context-menu-background-highlight: var(--app-selection);
+  --jse-context-menu-separator-color: var(--app-border);
+  --jse-context-menu-color: var(--app-text);
+  --jse-context-menu-pointer-background: var(--app-selection-inactive);
+  --jse-context-menu-pointer-background-highlight: var(--app-selection);
+  --jse-context-menu-pointer-color: var(--app-text);
+
+  --jse-key-color: var(--app-json-key);
+  --jse-value-color: var(--app-text);
+  --jse-value-color-number: var(--app-json-number);
+  --jse-value-color-boolean: var(--app-json-boolean);
+  --jse-value-color-null: var(--app-json-null);
+  --jse-value-color-string: var(--app-json-string);
+  --jse-value-color-url: var(--app-json-string);
+  --jse-delimiter-color: var(--app-text-muted);
+  --jse-edit-outline: 2px solid var(--app-accent);
+
+  --jse-selection-background-color: var(--app-selection);
+  --jse-selection-background-inactive-color: var(--app-selection-inactive);
+  --jse-hover-background-color: var(--app-hover);
+  --jse-active-line-background-color: var(--app-active-line);
+  --jse-search-match-background-color: var(--app-hover);
+
+  --jse-collapsed-items-background-color: var(--app-surface);
+  --jse-collapsed-items-selected-background-color: var(--app-selection);
+  --jse-collapsed-items-link-color: var(--app-text-muted);
+  --jse-collapsed-items-link-color-highlight: var(--app-accent);
+
+  --jse-search-match-color: var(--app-find);
+  --jse-search-match-outline: 1px solid var(--app-find);
+  --jse-search-match-active-color: var(--app-find);
+  --jse-search-match-active-outline: 2px solid var(--app-accent);
+
+  --jse-tag-background: var(--app-border);
+  --jse-tag-color: var(--app-text);
+
+  --jse-table-header-background: var(--app-header);
+  --jse-table-header-background-highlight: var(--app-hover);
+  --jse-table-row-odd-background: var(--app-row-odd);
+
+  --jse-input-background: var(--app-bg);
+  --jse-input-border: var(--jse-main-border);
+  --jse-button-background: var(--app-accent);
+  --jse-button-background-highlight: color-mix(in srgb, var(--app-accent) 82%, white);
+  --jse-button-color: var(--app-accent-text);
+  --jse-button-secondary-background: var(--app-selection-inactive);
+  --jse-button-secondary-background-highlight: var(--app-selection);
+  --jse-button-secondary-background-disabled: var(--app-hover);
+  --jse-button-secondary-color: var(--app-text);
+  --jse-a-color: var(--app-json-number);
+  --jse-a-color-highlight: color-mix(in srgb, var(--app-json-number) 75%, white);
+
+  --jse-svelte-select-background: var(--app-bg);
+  --jse-svelte-select-border: 1px solid var(--app-border);
+  --list-background: var(--app-surface);
+  --item-hover-bg: var(--app-selection);
+  --multi-item-bg: var(--app-selection-inactive);
+  --input-color: var(--app-text);
+  --multi-clear-bg: var(--app-border);
+  --multi-item-clear-icon-color: var(--app-text);
+  --multi-item-outline: 1px solid var(--app-border);
+  --list-shadow: 0 2px 8px 0 var(--app-shadow);
+
+  --jse-error-color: var(--app-error);
+  --jse-warning-color: var(--app-warning);
+  --jse-info-color: var(--app-json-number);
+  --jse-message-error-background: var(--app-error);
+  --jse-message-error-color: var(--app-bg);
+  --jse-message-warning-background: var(--app-warning);
+  --jse-message-warning-color: var(--app-bg);
+  --jse-message-success-background: var(--app-success);
+  --jse-message-success-color: var(--app-bg);
+  --jse-message-info-background: var(--app-json-number);
+  --jse-message-info-color: var(--app-bg);
+  --jse-message-action-background: rgba(0, 0, 0, 0.2);
+  --jse-message-action-background-highlight: rgba(0, 0, 0, 0.35);
+
+  /* 案内の画面と変換の確定のボタン。上流は白い文字を前提にするので、強調の色と対の文字にそろえる。 */
+  --jse-button-primary-background: var(--app-accent);
+  --jse-button-primary-background-highlight: color-mix(in srgb, var(--app-accent) 82%, white);
+  --jse-button-primary-color: var(--app-accent-text);
+  /* 入れ子の編集のモーダルの中のエディタ。上流は灰色（#707070）のメニューの地を固定するので、殻の面の色へ結ぶ。 */
+  --jse-modal-editor-theme-color: var(--app-surface);
+  --jse-modal-editor-theme-color-highlight: var(--app-selection);
+  /* 右クリックのメニューの見出し（変換先:、セル: など）。上流の既定の灰色は地に近い。 */
+  --jse-context-menu-color-disabled: var(--app-text-muted);
+
+  --jse-color-picker-background: var(--app-surface);
+  --jse-color-picker-border-box-shadow: var(--app-border) 0 0 0 1px;
+}
+
+html,
+body {
+  background: var(--app-bg);
+  color: var(--app-text);
+}
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.app-editor {
+  flex: 1;
+  min-height: 0;
+}
+
+/* 検索の当たりは金の地に暗い文字（地の色と 4.5 以上）。 */
+:root .jse-highlight,
+:root .jse-highlight *,
+:root .cm-searchMatch,
+:root .cm-searchMatch * {
+  color: var(--app-find-text);
+}
+
+/* 対応する括弧の強調。上流の規則は括弧の文字を薄い区切りの色のままにするので、本文の色へ戻す。 */
+:root:root .cm-matchingBracket,
+:root:root .cm-matchingBracket * {
+  color: var(--app-text);
+}
+
+/* 桜の飾り。ライトとダークで画像を替え、エディタの右下の隅に重ねる。クリックを妨げない。 */
+.app-editor {
+  position: relative;
+  overflow: hidden;
+}
+
+.app-editor::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: var(--sakura-width);
+  aspect-ratio: 600 / 573;
+  background: url('../../assets/theme/sakura-light.png') right bottom / contain no-repeat;
+  opacity: var(--sakura-opacity);
+  mix-blend-mode: var(--sakura-blend);
+  pointer-events: none;
+  z-index: 1;
+}
+
+:root[data-theme='dark'] .app-editor::after {
+  background-image: url('../../assets/theme/sakura.png');
+}
+
+/* 選んだボタン（Text / Tree / Table）は強調の色。上流の同じ強さの規則が後から読まれるので、:root を重ねて勝たせる。 */
+:root:root .jse-menu .jse-button.jse-group-button.jse-selected {
+  background: var(--app-accent);
+  border-color: var(--app-accent);
+  color: var(--app-accent-text);
+}

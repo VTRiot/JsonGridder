@@ -1,0 +1,771 @@
+<svelte:options accessors={false} immutable={true} />
+
+<script lang="ts">
+  import { createDebug } from '../utils/debug.js'
+  import { uniqueId } from '../utils/uniqueId.js'
+  import { isEqualParser, isJSONContent, validateContentType } from '../utils/jsonUtils.js'
+  import AbsolutePopup from './modals/popup/AbsolutePopup.svelte'
+  import { jsonQueryLanguage } from '$lib/plugins/query/jsonQueryLanguage.js'
+  import { renderValue } from '$lib/plugins/value/renderValue.js'
+  import { flushSync } from 'svelte'
+  import TransformModal from './modals/TransformModal.svelte'
+  import type {
+    Content,
+    ContentErrors,
+    ContextMenuItem,
+    JSONEditorModalCallback,
+    JSONEditorModalProps,
+    JSONEditorPropsOptional,
+    JSONEditorSelection,
+    JSONParser,
+    JSONPatchResult,
+    JSONPathParser,
+    Language,
+    MenuItem,
+    ModeGuard,
+    OnBlur,
+    OnChange,
+    OnChangeMode,
+    OnChangeTableTarget,
+    TableTargetChange,
+    OnChangeQueryLanguage,
+    OnChangeStatus,
+    OnClassName,
+    OnError,
+    OnExpand,
+    OnFocus,
+    OnRenderMenu,
+    OnRenderValue,
+    OnSelect,
+    QueryLanguage,
+    SortModalCallback,
+    TransformModalCallback,
+    TransformModalOptions,
+    TransformModalProps,
+    Validator
+  } from '$lib/types'
+  import type { OnRenderContextMenu } from '$lib/types.js'
+  import { Mode } from '$lib/types.js'
+  import type { JSONPatchDocument, JSONPath } from 'immutable-json-patch'
+  import { noop } from '../utils/noop.js'
+  import { parseJSONPath, stringifyJSONPath } from '$lib/utils/pathUtils.js'
+  import { setI18nData } from '$lib/i18n/index.js'
+  import { english } from '$lib/i18n/locales/english.js'
+  import JSONEditorRoot from './modes/JSONEditorRoot.svelte'
+  import JSONEditorModal from './modals/JSONEditorModal.svelte'
+  import memoizeOne from 'memoize-one'
+  import { cloneDeep } from 'lodash-es'
+  import SortModal from './modals/SortModal.svelte'
+  import { findRefusedKey } from '$lib/logic/operations.js'
+
+  // TODO: document how to enable debugging in the readme: localStorage.debug="jsoneditor:*", then reload
+  const debug = createDebug('jsoneditor:JSONEditor')
+
+  const contentDefault = { text: '' }
+  const selectionDefault = undefined
+  const readOnlyDefault = false
+  const indentationDefault = 2
+  const tabSizeDefault = 4
+  const truncateTextSizeDefault = 1000
+  const modeDefault = Mode.tree
+  const ariaLabelDefault = 'JSON editor'
+  const mainMenuBarDefault = true
+  const navigationBarDefault = true
+  const statusBarDefault = true
+  const askToFormatDefault = true
+  const escapeControlCharactersDefault = false
+  const escapeUnicodeCharactersDefault = false
+  const maxDocumentSizeTextModeDefault = 10 * 1024 * 1024 // 10MB
+  const modeGuardDefault = undefined
+  const allowExtractDefault = true
+  const flattenColumnsDefault = true
+  const parserDefault = JSON
+  const validatorDefault = undefined
+  const validationParserDefault = JSON
+  const pathParserDefault = {
+    parse: parseJSONPath,
+    stringify: stringifyJSONPath
+  }
+  const queryLanguagesDefault = [jsonQueryLanguage]
+  const queryLanguageIdDefault = queryLanguagesDefault[0].id
+  const onChangeQueryLanguageDefault = noop
+  const onChangeDefault = undefined
+  const onSelectDefault = undefined
+  const onRenderValueDefault = renderValue
+  const onClassNameDefault = noop
+  const onRenderMenuDefault = noop
+  const onRenderContextMenuDefault = noop
+  const onChangeModeDefault = noop
+  const onErrorDefault: OnError = (err) => {
+    console.error(err)
+  }
+  const onFocusDefault = noop
+  const onBlurDefault = noop
+  const languageDefault: Language = english
+
+  export let content: Content = contentDefault
+  export let selection: JSONEditorSelection | undefined = selectionDefault
+  export let readOnly: boolean = readOnlyDefault
+  export let indentation: number | string = indentationDefault
+  export let tabSize: number = tabSizeDefault
+  export let truncateTextSize: number = truncateTextSizeDefault
+  export let mode: Mode = modeDefault
+  export let ariaLabel: string = ariaLabelDefault
+  export let mainMenuBar: boolean = mainMenuBarDefault
+  export let navigationBar: boolean = navigationBarDefault
+  export let statusBar: boolean = statusBarDefault
+  export let askToFormat: boolean = askToFormatDefault
+  export let escapeControlCharacters: boolean = escapeControlCharactersDefault
+  export let escapeUnicodeCharacters: boolean = escapeUnicodeCharactersDefault
+  export let maxDocumentSizeTextMode: number = maxDocumentSizeTextModeDefault
+  export let modeGuard: ModeGuard | undefined = modeGuardDefault
+  export let allowExtract: boolean = allowExtractDefault
+  export let flattenColumns: boolean = flattenColumnsDefault
+  export let parser: JSONParser = parserDefault
+  export let validator: Validator | undefined = validatorDefault
+  export let validationParser: JSONParser = validationParserDefault
+  export let pathParser: JSONPathParser = pathParserDefault
+  export let queryLanguages: QueryLanguage[] = queryLanguagesDefault
+  export let queryLanguageId: string = queryLanguageIdDefault
+  export let onChangeQueryLanguage: OnChangeQueryLanguage = onChangeQueryLanguageDefault
+  export let onChange: OnChange | undefined = onChangeDefault
+  export let onSelect: OnSelect | undefined = onSelectDefault
+  export let onRenderValue: OnRenderValue = onRenderValueDefault
+  export let onClassName: OnClassName = onClassNameDefault
+  export let onRenderMenu: OnRenderMenu = onRenderMenuDefault
+  export let onRenderContextMenu: OnRenderContextMenu = onRenderContextMenuDefault
+  export let onChangeMode: OnChangeMode = onChangeModeDefault
+  export let tableTarget: JSONPath = []
+  export let onChangeTableTarget: OnChangeTableTarget | undefined = undefined
+  export let onError: OnError = onErrorDefault
+  export let onFocus: OnFocus = onFocusDefault
+  export let onBlur: OnBlur = onBlurDefault
+  export let language: Language = languageDefault
+
+  let instanceId = uniqueId()
+  let hasFocus = false
+  let refJSONEditorRoot: JSONEditorRoot
+  let jsonEditorModalProps: JSONEditorModalProps | undefined = undefined
+  let sortModalProps: SortModalCallback | undefined
+  let transformModalProps: TransformModalProps | undefined
+
+  $: if (language) {
+    setI18nData(language)
+  }
+
+  $: {
+    const contentError = validateContentType(content)
+    if (contentError) {
+      console.error('Error: ' + contentError)
+    }
+  }
+
+  // backward compatibility warning since v1.0.0
+  $: if (selection === null) {
+    console.warn('selection is invalid: it is null but should be undefined')
+  }
+
+  // We memoize the last parse result for the case when the content is text and very large.
+  // In that case parsing takes a few seconds. When the user switches between tree and table mode,
+  // without having made a change, we do not want to parse the text again.
+  $: parseMemoizeOne = memoizeOne(parser.parse)
+
+  // rerender the full editor when the parser changes. This is needed because
+  // numeric state is hold at many places in the editor.
+  let previousParser = parser
+  $: {
+    if (!isEqualParser(parser, previousParser)) {
+      debug('parser changed, recreate editor')
+
+      if (isJSONContent(content)) {
+        const text = previousParser.stringify(content.json)
+        content = {
+          json: text !== undefined ? parser.parse(text) : undefined
+        }
+      }
+
+      previousParser = parser
+
+      // new editor id -> will re-create the editor
+      instanceId = uniqueId()
+    }
+  }
+
+  export function get(): Content {
+    return content
+  }
+
+  /**
+   * Bring all input into the document, synchronously, whether or not the window has focus: text
+   * that was typed but not yet passed on, and a value that is being edited in tree or table mode.
+   * onChange fires for what was not passed on yet, and get() returns the result.
+   *
+   * Do not call this, set(), update() or patch() from inside onChange: they update the view
+   * synchronously, and that must not happen in the middle of an update.
+   */
+  export function commitPendingInput(): void {
+    refJSONEditorRoot.commitInput()
+
+    flushSync()
+  }
+
+  /**
+   * A modal works on a copy of the document, and applying it would write that copy back.
+   */
+  function closeModals() {
+    sortModalProps?.onClose()
+    sortModalProps = undefined
+    transformModalProps?.onClose()
+    transformModalProps = undefined
+    jsonEditorModalProps?.onClose()
+    jsonEditorModalProps = undefined
+  }
+
+  /**
+   * Replace the document. The new document stays: input that was not passed on yet goes out via
+   * onChange first, and nothing writes back the previous document afterwards.
+   * Pass a mode to open the document in that mode, without consulting the mode guard: the caller
+   * has decided how the new document can be shown.
+   */
+  export function set(
+    newContent: Content,
+    options: { mode?: Mode; tableTarget?: JSONPath } = {}
+  ): void {
+    debug('set')
+
+    const contentError = validateContentType(newContent)
+    if (contentError) {
+      throw new Error(contentError)
+    }
+
+    commitPendingInput()
+    closeModals()
+
+    if (options.mode) {
+      mode = options.mode
+    }
+    tableTarget = options.tableTarget ?? []
+
+    // new editor id -> will re-create the editor
+    instanceId = uniqueId()
+
+    // update content *after* re-render, so that the new editor will trigger an onChange event
+    content = newContent
+
+    flushSync()
+  }
+
+  export function update(updatedContent: Content): void {
+    debug('update')
+
+    const contentError = validateContentType(updatedContent)
+    if (contentError) {
+      throw new Error(contentError)
+    }
+
+    prepareNewContent(updatedContent)
+
+    content = updatedContent
+
+    flushSync()
+  }
+
+  /**
+   * Apply operations on the document. Like upstream, this does not fire onChange: the caller knows
+   * what it changed. Throws when the operations create a key that the parser refuses.
+   */
+  export function patch(operations: JSONPatchDocument): JSONPatchResult {
+    const refused = findRefusedKey(operations, parser)
+    if (refused) {
+      throw refused
+    }
+
+    commitPendingInput()
+
+    // Note that patch has an optional afterPatch callback.
+    // right now we don's support this in the public API.
+    const result = refJSONEditorRoot.patch(operations)
+
+    // The modes do not pass a public patch on via onChange. Keep content in sync with them, else
+    // the next update of the content takes the patch back. In text mode with the same text as
+    // the view holds, so that this is not one more edit.
+    content =
+      mode === Mode.text
+        ? { text: parser.stringify(result.json, null, indentation) as string }
+        : { json: result.json }
+
+    flushSync()
+
+    return result
+  }
+
+  export function select(newSelection: JSONEditorSelection | undefined): void {
+    selection = newSelection
+
+    flushSync()
+  }
+
+  export function expand(path: JSONPath, callback?: OnExpand): void {
+    refJSONEditorRoot.expand(path, callback)
+
+    flushSync()
+  }
+
+  export function collapse(path: JSONPath, recursive = false): void {
+    refJSONEditorRoot.collapse(path, recursive)
+
+    flushSync()
+  }
+
+  /**
+   * Open the transform modal
+   */
+  export function transform(options: TransformModalOptions = {}): void {
+    refJSONEditorRoot.transform(options)
+
+    flushSync()
+  }
+
+  /**
+   * Validate the contents of the editor using the configured validator.
+   * Returns a parse error or a list with validation warnings
+   */
+  export function validate(): ContentErrors | undefined {
+    return refJSONEditorRoot.validate()
+  }
+
+  /**
+   * In tree mode, invalid JSON is automatically repaired when loaded. When the
+   * repair was successful, the repaired contents are rendered but not yet
+   * applied to the document itself until the user clicks "Ok" or starts editing
+   * the data. Instead of accepting the repair, the user can also click
+   * "Repair manually instead". Invoking `.acceptAutoRepair()` will
+   * programmatically accept the repair. This will trigger an update,
+   * and the method itself also returns the updated contents. In case of text
+   * mode or when the editor is not in an "accept auto repair" status, nothing
+   * will happen, and the contents will be returned as is.
+   */
+  export function acceptAutoRepair(): Content {
+    const content = refJSONEditorRoot.acceptAutoRepair()
+
+    flushSync()
+
+    return content
+  }
+
+  export async function scrollTo(path: JSONPath): Promise<void> {
+    await refJSONEditorRoot.scrollTo(path)
+  }
+
+  export function findElement(path: JSONPath): Element | undefined {
+    return refJSONEditorRoot.findElement(path)
+  }
+
+  export function focus(): void {
+    refJSONEditorRoot.focus()
+
+    flushSync()
+  }
+
+  export async function refresh(): Promise<void> {
+    await refJSONEditorRoot.refresh()
+  }
+
+  function prepareNewContent(newContent: Content) {
+    const replacing = newContent !== content
+
+    commitPendingInput()
+
+    if (replacing) {
+      closeModals()
+    }
+  }
+
+  export function updateProps(props: JSONEditorPropsOptional): void {
+    const names = Object.keys(props) as (keyof JSONEditorPropsOptional)[]
+    let requestedMode: Mode | undefined = undefined
+
+    if (props.content) {
+      prepareNewContent(props.content)
+    }
+
+    for (const name of names) {
+      switch (name) {
+        case 'content':
+          content = props[name] ?? contentDefault
+          break
+        case 'selection':
+          selection = props[name] ?? selectionDefault
+          break
+        case 'readOnly':
+          readOnly = props[name] ?? readOnlyDefault
+          break
+        case 'indentation':
+          indentation = props[name] ?? indentationDefault
+          break
+        case 'tabSize':
+          tabSize = props[name] ?? tabSizeDefault
+          break
+        case 'truncateTextSize':
+          truncateTextSize = props[name] ?? truncateTextSizeDefault
+          break
+        case 'mode':
+          requestedMode = props[name] ?? modeDefault
+          break
+        case 'ariaLabel':
+          ariaLabel = props[name] ?? ariaLabelDefault
+          break
+        case 'mainMenuBar':
+          mainMenuBar = props[name] ?? mainMenuBarDefault
+          break
+        case 'navigationBar':
+          navigationBar = props[name] ?? navigationBarDefault
+          break
+        case 'statusBar':
+          statusBar = props[name] ?? statusBarDefault
+          break
+        case 'askToFormat':
+          askToFormat = props[name] ?? askToFormatDefault
+          break
+        case 'escapeControlCharacters':
+          escapeControlCharacters = props[name] ?? escapeControlCharactersDefault
+          break
+        case 'escapeUnicodeCharacters':
+          escapeUnicodeCharacters = props[name] ?? escapeUnicodeCharactersDefault
+          break
+        case 'maxDocumentSizeTextMode':
+          maxDocumentSizeTextMode = props[name] ?? maxDocumentSizeTextModeDefault
+          break
+        case 'modeGuard':
+          modeGuard = props[name] ?? modeGuardDefault
+          break
+        case 'allowExtract':
+          allowExtract = props[name] ?? allowExtractDefault
+          break
+        case 'flattenColumns':
+          flattenColumns = props[name] ?? flattenColumnsDefault
+          break
+        case 'parser':
+          parser = props[name] ?? parserDefault
+          break
+        case 'validator':
+          validator = props[name] ?? validatorDefault
+          break
+        case 'validationParser':
+          validationParser = props[name] ?? validationParserDefault
+          break
+        case 'pathParser':
+          pathParser = props[name] ?? pathParserDefault
+          break
+        case 'queryLanguages':
+          queryLanguages = props[name] ?? queryLanguagesDefault
+          break
+        case 'queryLanguageId':
+          queryLanguageId = props[name] ?? queryLanguageIdDefault
+          break
+        case 'onChangeQueryLanguage':
+          onChangeQueryLanguage = props[name] ?? onChangeQueryLanguageDefault
+          break
+        case 'onChange':
+          onChange = props[name] ?? onChangeDefault
+          break
+        case 'onRenderValue':
+          onRenderValue = props[name] ?? onRenderValueDefault
+          break
+        case 'onClassName':
+          onClassName = props[name] ?? onClassNameDefault
+          break
+        case 'onRenderMenu':
+          onRenderMenu = props[name] ?? onRenderMenuDefault
+          break
+        case 'onRenderContextMenu':
+          onRenderContextMenu = props[name] ?? onRenderContextMenuDefault
+          break
+        case 'onChangeMode':
+          onChangeMode = props[name] ?? onChangeModeDefault
+          break
+        case 'tableTarget':
+          tableTarget = props[name] ?? []
+          break
+        case 'onChangeTableTarget':
+          onChangeTableTarget = props[name]
+          break
+        case 'onSelect':
+          onSelect = props[name] ?? onSelectDefault
+          break
+        case 'onError':
+          onError = props[name] ?? onErrorDefault
+          break
+        case 'onFocus':
+          onFocus = props[name] ?? onFocusDefault
+          break
+        case 'onBlur':
+          onBlur = props[name] ?? onBlurDefault
+          break
+        case 'language':
+          language = props[name] ?? languageDefault
+          break
+
+        default:
+          // We should never reach this default case
+          unknownProperty(name)
+      }
+    }
+
+    if (!queryLanguages.some((queryLanguage) => queryLanguage.id === queryLanguageId)) {
+      queryLanguageId = queryLanguages[0].id
+    }
+
+    if (requestedMode !== undefined) {
+      if (modeGuard) {
+        refJSONEditorRoot.requestMode(requestedMode, applyRequestedMode)
+      } else {
+        mode = requestedMode
+      }
+    }
+
+    function unknownProperty(name: never) {
+      debug(`Unknown property "${name}"`)
+    }
+
+    flushSync()
+  }
+
+  function applyRequestedMode(newMode: Mode) {
+    mode = newMode
+
+    flushSync()
+  }
+
+  export async function destroy() {
+    throw new Error(
+      'class method destroy() is deprecated. ' +
+        'It is replaced with a method destroy() in the vanilla library.'
+    )
+  }
+
+  function handleChange(updatedContent: Content, previousContent: Content, status: OnChangeStatus) {
+    content = updatedContent
+
+    if (onChange) {
+      onChange(updatedContent, previousContent, status)
+    }
+  }
+
+  function handleSelect(updatedSelection: JSONEditorSelection | undefined) {
+    selection = updatedSelection
+
+    if (onSelect) {
+      onSelect(cloneDeep(updatedSelection))
+    }
+  }
+
+  function handleFocus() {
+    hasFocus = true
+    if (onFocus) {
+      onFocus()
+    }
+  }
+
+  function handleBlur() {
+    hasFocus = false
+    if (onBlur) {
+      onBlur()
+    }
+  }
+
+  async function toggleMode(newMode: Mode) {
+    if (mode === newMode) {
+      return
+    }
+
+    mode = newMode
+
+    flushSync()
+    focus()
+
+    onChangeMode(newMode)
+  }
+
+  function handleChangeTableTarget(path: JSONPath, reason: TableTargetChange) {
+    tableTarget = path
+
+    flushSync()
+
+    onChangeTableTarget?.(path, reason)
+  }
+
+  function handleChangeQueryLanguage(newQueryLanguageId: string) {
+    debug('handleChangeQueryLanguage', newQueryLanguageId)
+    queryLanguageId = newQueryLanguageId
+    onChangeQueryLanguage(newQueryLanguageId)
+  }
+
+  // The onTransformModal method is located in JSONEditor to prevent circular references:
+  //     TreeMode -> TransformModal -> TreeMode
+  function onTransformModal({ id, json, rootPath, onTransform, onClose }: TransformModalCallback) {
+    if (readOnly) {
+      return
+    }
+
+    transformModalProps = {
+      id,
+      json,
+      rootPath,
+      indentation,
+      truncateTextSize,
+      escapeControlCharacters,
+      escapeUnicodeCharacters,
+      parser,
+      parseMemoizeOne,
+      validationParser,
+      pathParser,
+      queryLanguages,
+      queryLanguageId,
+      onChangeQueryLanguage: handleChangeQueryLanguage,
+      onRenderValue,
+      onRenderMenu: (items: MenuItem[]) => onRenderMenu(items, { mode, modal: true, readOnly }),
+      onRenderContextMenu: (items: ContextMenuItem[]) =>
+        onRenderContextMenu(items, { mode, modal: true, readOnly, selection }),
+      onClassName,
+      onTransform,
+      onClose
+    }
+  }
+
+  // The onSortModal is positioned here for consistency with TransformModal
+  function onSortModal(props: SortModalCallback) {
+    if (readOnly) {
+      return
+    }
+
+    sortModalProps = props
+  }
+
+  // The onJSONEditorModal method is located in JSONEditor to prevent circular references:
+  //     JSONEditor -> TableMode -> JSONEditorModal -> JSONEditor
+  function onJSONEditorModal({ content, path, onPatch, onClose }: JSONEditorModalCallback) {
+    debug('onJSONEditorModal', { content, path })
+
+    jsonEditorModalProps = {
+      content,
+      path,
+      onPatch,
+
+      readOnly,
+      indentation,
+      tabSize,
+      truncateTextSize,
+      mainMenuBar,
+      navigationBar,
+      statusBar,
+      askToFormat,
+      escapeControlCharacters,
+      escapeUnicodeCharacters,
+      maxDocumentSizeTextMode,
+      modeGuard,
+      allowExtract,
+      flattenColumns,
+      parser,
+      validator: undefined, // TODO: support partial JSON validation?
+      validationParser,
+      pathParser,
+      onRenderValue,
+      onClassName,
+      onRenderMenu,
+      onRenderContextMenu,
+      onSortModal,
+      onTransformModal,
+      onClose
+    }
+  }
+
+  function handleKeyDown(event: KeyboardEvent) {
+    // prevent browser addons from reacting to keyboard inputs inside the editor
+    // see https://github.com/josdejong/svelte-jsoneditor/issues/512
+    event.stopPropagation()
+  }
+
+  $: debug('mode changed to', mode)
+</script>
+
+<AbsolutePopup>
+  <div class="jse-main" class:jse-focus={hasFocus} on:keydown={handleKeyDown} role="none">
+    {#key instanceId}
+      <JSONEditorRoot
+        bind:this={refJSONEditorRoot}
+        externalMode={mode}
+        {content}
+        {selection}
+        {readOnly}
+        {indentation}
+        {tabSize}
+        {truncateTextSize}
+        {ariaLabel}
+        {statusBar}
+        {askToFormat}
+        {mainMenuBar}
+        {navigationBar}
+        {maxDocumentSizeTextMode}
+        {modeGuard}
+        {allowExtract}
+        {escapeControlCharacters}
+        {escapeUnicodeCharacters}
+        {flattenColumns}
+        {parser}
+        {parseMemoizeOne}
+        {validator}
+        {validationParser}
+        {pathParser}
+        insideModal={false}
+        {onError}
+        onChange={handleChange}
+        onChangeMode={toggleMode}
+        {tableTarget}
+        onChangeTableTarget={onChangeTableTarget ? handleChangeTableTarget : undefined}
+        onSelect={handleSelect}
+        {onRenderValue}
+        {onClassName}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
+        {onRenderMenu}
+        {onRenderContextMenu}
+        {onSortModal}
+        {onTransformModal}
+        {onJSONEditorModal}
+      />
+    {/key}
+  </div>
+
+  {#if sortModalProps}
+    <SortModal
+      {...sortModalProps}
+      onClose={() => {
+        sortModalProps?.onClose()
+        sortModalProps = undefined
+      }}
+    />
+  {/if}
+
+  {#if transformModalProps}
+    <TransformModal
+      {...transformModalProps}
+      onClose={() => {
+        transformModalProps?.onClose()
+        transformModalProps = undefined
+      }}
+    />
+  {/if}
+
+  {#if jsonEditorModalProps}
+    <JSONEditorModal
+      {...jsonEditorModalProps}
+      onClose={() => {
+        jsonEditorModalProps?.onClose()
+        jsonEditorModalProps = undefined
+      }}
+    />
+  {/if}
+</AbsolutePopup>
+
+<style src="./JSONEditor.scss"></style>

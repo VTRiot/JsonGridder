@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>JsonGridder</title>
+    <style>
+      /* 起動画面は、設定のテーマに合わせる（ダークは夜桜、ライトは藤）。窓は透過なので、角はこの面の丸みで決まる。
+         テーマは Rust の初期化スクリプトが、最初の描画より前に html の data-theme へ入れる（splash.ts も入れ直す）。
+         入っていないときは夜桜（ダーク）の面で出し、透明な空白は出さない */
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: transparent;
+        overflow: hidden;
+        user-select: none;
+      }
+      .card {
+        --splash-bg: #181528;
+        --splash-text: #8d86ad;
+        box-sizing: border-box;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 30px;
+        background: var(--splash-bg);
+        border-radius: 24px;
+      }
+      html[data-theme='light'] .card {
+        --splash-bg: #f7f5fb;
+        --splash-text: #5e5378;
+      }
+      /* 窓の大きさ（splash.rs の 690 x 442）と揃える。ロゴはライトもダークも同じ形（900 x 437）で、幅 612px。 */
+      .logo {
+        width: 612px;
+        height: auto;
+      }
+      html[data-theme='light'] .logo-dark,
+      html:not([data-theme='light']) .logo-light {
+        display: none;
+      }
+      .opening {
+        margin: 0;
+        font: 18px/1 'Segoe UI', sans-serif;
+        letter-spacing: 0.08em;
+        color: var(--splash-text);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <img class="logo logo-dark" src="/assets/splash/logo.png" alt="" />
+      <img class="logo logo-light" src="/assets/splash/logo-light.png" alt="" />
+      <p class="opening" id="opening"></p>
+    </div>
+    <script type="module" src="/src/splash.ts"></script>
+  </body>
+</html>

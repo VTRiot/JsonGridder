@@ -1,0 +1,404 @@
+[
+  {
+    "name": "同値の重複キー",
+    "input": "{\"a\":1,\"a\":1}",
+    "result": {
+      "duplicateKey": true,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": true
+    }
+  },
+  {
+    "name": "配列の中のオブジェクトの同値の重複キー",
+    "input": "[{\"a\":1,\"a\":1}]",
+    "result": {
+      "duplicateKey": true,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": true
+    }
+  },
+  {
+    "name": "別の値の重複キー",
+    "input": "{\"a\":1,\"a\":{}}",
+    "result": {
+      "duplicateKey": true,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": true
+    },
+    "parserRejects": true
+  },
+  {
+    "name": "エスケープで書いた重複キー",
+    "input": "{\"a\":1,\"\\u0061\":1}",
+    "result": {
+      "duplicateKey": true,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": true
+    }
+  },
+  {
+    "name": "サロゲートのエスケープで書いた重複キー",
+    "input": "{\"😀\":1,\"\\ud83d\\ude00\":1}",
+    "result": {
+      "duplicateKey": true,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": true
+    }
+  },
+  {
+    "name": "数字キーが名前のキーの後",
+    "input": "{\"b\":1,\"2\":\"x\",\"1\":\"y\"}",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": true,
+      "depthExceeded": false,
+      "syntaxOk": true
+    }
+  },
+  {
+    "name": "数字キーが昇順でない",
+    "input": "{\"2\":\"x\",\"1\":\"y\"}",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": true,
+      "depthExceeded": false,
+      "syntaxOk": true
+    }
+  },
+  {
+    "name": "添字の上限のキー",
+    "input": "{\"b\":1,\"4294967294\":2}",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": true,
+      "depthExceeded": false,
+      "syntaxOk": true
+    }
+  },
+  {
+    "name": "上限を超える深さ",
+    "input": "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": false,
+      "depthExceeded": true,
+      "syntaxOk": true
+    }
+  },
+  {
+    "name": "上限ちょうどの深さ",
+    "input": "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": true
+    }
+  },
+  {
+    "name": "通常の文書",
+    "input": "{\"a\":[1,2,{\"b\":null}],\"c\":\"x\"}",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": true
+    }
+  },
+  {
+    "name": "文字列の値の中に同じ字面",
+    "input": "{\"text\":\"\\\"a\\\":1,\\\"a\\\":1\"}",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": true
+    }
+  },
+  {
+    "name": "別のオブジェクトの同名キー",
+    "input": "[{\"a\":1},{\"a\":2},{\"b\":{\"a\":3},\"a\":4}]",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": true
+    }
+  },
+  {
+    "name": "昇順の数字キー",
+    "input": "{\"1\":\"a\",\"2\":\"b\"}",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": true
+    }
+  },
+  {
+    "name": "数字キーの後の名前のキー",
+    "input": "{\"2\":\"a\",\"b\":1}",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": true
+    }
+  },
+  {
+    "name": "先頭に 0 のあるキーは添字でない",
+    "input": "{\"b\":1,\"01\":2}",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": true
+    }
+  },
+  {
+    "name": "添字の上限を超えるキー",
+    "input": "{\"b\":1,\"4294967295\":2}",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": true
+    }
+  },
+  {
+    "name": "負の数のキーは添字でない",
+    "input": "{\"b\":1,\"-1\":2}",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": true
+    }
+  },
+  {
+    "name": "数値の字面",
+    "input": "[0,-0,1.0,1e400,1E+3,0.10,12345678901234567890]",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": true
+    }
+  },
+  {
+    "name": "スカラー",
+    "input": "null",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": true
+    }
+  },
+  {
+    "name": "文字列のスカラー",
+    "input": "\"a\\/b\"",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": true
+    }
+  },
+  {
+    "name": "前後の空白",
+    "input": " \r\n\t[1] \n",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": true
+    }
+  },
+  {
+    "name": "空の入力",
+    "input": "",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": false
+    }
+  },
+  {
+    "name": "空白だけ",
+    "input": "  \n",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": false
+    }
+  },
+  {
+    "name": "末尾のカンマの配列",
+    "input": "[1,]",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": false
+    }
+  },
+  {
+    "name": "末尾のカンマのオブジェクト",
+    "input": "{\"a\":1,}",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": false
+    }
+  },
+  {
+    "name": "先頭に 0 のある数値",
+    "input": "[01]",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": false
+    }
+  },
+  {
+    "name": "数値の途中で終わる",
+    "input": "1e",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": false
+    }
+  },
+  {
+    "name": "マイナスだけ",
+    "input": "-",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": false
+    }
+  },
+  {
+    "name": "小数点で始まる",
+    "input": ".5",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": false
+    }
+  },
+  {
+    "name": "後ろのごみ",
+    "input": "{\"a\":1} xyz",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": false
+    }
+  },
+  {
+    "name": "途中で切れた文書",
+    "input": "{\"a\":[1,2",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": false
+    }
+  },
+  {
+    "name": "途中で切れた文字列",
+    "input": "{\"a\":\"hello wor",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": false
+    }
+  },
+  {
+    "name": "不正なエスケープ",
+    "input": "\"\\x\"",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": false
+    }
+  },
+  {
+    "name": "文字列の中の改行",
+    "input": "\"a\nb\"",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": false
+    }
+  },
+  {
+    "name": "コメント付きの JSON",
+    "input": "{\"a\":1, /* c */ \"b\":2} // tail",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": false
+    }
+  },
+  {
+    "name": "1 行に 1 つの JSON",
+    "input": "{\"a\":1}\n{\"a\":2}\n",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": false
+    }
+  },
+  {
+    "name": "キーが文字列でない",
+    "input": "{a:1}",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": false
+    }
+  },
+  {
+    "name": "構文の誤りの前の重複キーのフラグは残る",
+    "input": "[{\"a\":1,\"a\":1},",
+    "result": {
+      "duplicateKey": true,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": false
+    }
+  },
+  {
+    "name": "予約のキー",
+    "input": "{\"__proto__\":{\"x\":1},\"a\":2}",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": false,
+      "reservedKey": true,
+      "depthExceeded": false,
+      "syntaxOk": true
+    }
+  }
+]
