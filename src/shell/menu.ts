@@ -9,6 +9,8 @@ export interface MenuBarOptions {
   onCommand(command: MenuCommand): void
   /** メニューが閉じて、エディタへ戻すとき。 */
   onDismiss(): void
+  /** メニューの右に区切りを挟んで置く部品（表示の切り替え）。花びらより左。描き直しでも同じ要素を使う。 */
+  trailing?: HTMLElement
 }
 
 export interface MenuBar {
@@ -31,6 +33,12 @@ export function createPopupElement(
   popup.setAttribute('role', 'menu')
 
   for (const entry of entries) {
+    if (entry.separatorBefore) {
+      const separator = document.createElement('div')
+      separator.className = 'app-menu-separator'
+      separator.setAttribute('role', 'separator')
+      popup.appendChild(separator)
+    }
     const item = document.createElement('button')
     item.type = 'button'
     item.className = 'app-menu-item'
@@ -277,6 +285,8 @@ export function createMenuBar(host: HTMLElement, options: MenuBarOptions): MenuB
 
   bar.addEventListener('keydown', handleKey)
   window.addEventListener('pointerdown', handleOutsidePointer, true)
+  // 置いた部品は行の中にあるので、外の押下の判定に当たらない。押したら開いたメニューを閉じる
+  options.trailing?.addEventListener('pointerdown', () => closePopup())
 
   function render(): void {
     closePopup()
@@ -303,6 +313,13 @@ export function createMenuBar(host: HTMLElement, options: MenuBarOptions): MenuB
       })
       bar.appendChild(button)
     })
+    if (options.trailing) {
+      const separator = document.createElement('span')
+      separator.className = 'app-menubar-separator'
+      separator.setAttribute('role', 'separator')
+      separator.setAttribute('aria-orientation', 'vertical')
+      bar.append(separator, options.trailing)
+    }
     bar.appendChild(createPetal())
   }
 

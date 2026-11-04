@@ -1,0 +1,49 @@
+@use '../../../styles.scss';
+@use '../../../themes/defaults';
+
+// The buttons keep the same weight as ContextMenuButton (button.class), so an application can
+// color an item through its className the same way as a plain context menu button.
+button.jse-context-menu-button {
+  @include styles.jsoneditor-context-menu-button;
+  text-align: left;
+}
+
+button.jse-context-submenu-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: defaults.$padding;
+
+  &[aria-expanded='true'] {
+    background: defaults.$context-menu-background-highlight;
+  }
+}
+
+.jse-context-submenu {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.jse-context-submenu-items {
+  position: absolute;
+  left: 100%;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  background: defaults.$context-menu-background;
+  color: defaults.$context-menu-color;
+  box-shadow: defaults.$controls-box-shadow;
+
+  &.jse-open-left {
+    left: auto;
+    right: 100%;
+  }
+
+  &.jse-open-up {
+    top: auto;
+    bottom: 0;
+  }
+}

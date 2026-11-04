@@ -10,10 +10,27 @@ const EDITOR_ROOT = '.cm-editor'
 /** 1 点の大きさのアンカー。右クリックの位置から出す。 */
 const ANCHOR_SIZE_PX = 0
 
-type Action = 'cut' | 'copy' | 'paste' | 'selectAll'
+export type TextAction = 'cut' | 'copy' | 'paste' | 'selectAll'
+type Action = TextAction
 
 interface ActionEntry extends MenuEntry {
   action: Action
+}
+
+/** 主のエディタのテキストの表示の CodeMirror。入れ子の値のモーダルの中の物は含めない。 */
+export function mainTextView(host: HTMLElement): EditorView | null {
+  const root = host.querySelector<HTMLElement>(`:scope > .jse-main ${EDITOR_ROOT}`)
+  return root ? EditorView.findFromDOM(root) : null
+}
+
+/** 右クリックのメニューと同じ判定で、その操作を押せるか。 */
+export function textActionEnabled(view: EditorView, action: TextAction): boolean {
+  return entriesFor(view).find((entry) => entry.action === action)?.enabled ?? false
+}
+
+/** 右クリックのメニューと同じ操作（Edit メニューから使う）。 */
+export function runTextAction(view: EditorView, action: TextAction): Promise<void> {
+  return run(view, action)
 }
 
 function selectedText(view: EditorView): string {

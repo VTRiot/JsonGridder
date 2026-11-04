@@ -284,7 +284,23 @@ export interface ContextMenuRow {
   type: 'row'
   items: Array<MenuButton | MenuDropDownButton | ContextMenuColumn>
 }
-export type ContextMenuItem = MenuButton | MenuDropDownButton | MenuSeparator | ContextMenuRow
+/**
+ * An item that opens a nested list of buttons beside it (a submenu). Opens with click, hover,
+ * ArrowRight and Enter; the nested list closes with ArrowLeft and Escape.
+ */
+export interface MenuSubmenu {
+  type: 'submenu'
+  text: string
+  title?: string
+  className?: string
+  items: MenuButton[]
+}
+export type ContextMenuItem =
+  | MenuButton
+  | MenuDropDownButton
+  | MenuSeparator
+  | ContextMenuRow
+  | MenuSubmenu
 
 export interface MessageAction {
   text: string
@@ -428,6 +444,12 @@ export type OnChangeMode = (mode: Mode) => void
 export type TableTargetChange = 'invalid' | 'history' | 'welcome'
 
 export type OnChangeTableTarget = (path: JSONPath, reason: TableTargetChange) => void
+
+/**
+ * An edit command run from outside the editor, such as an Edit menu of the application. It calls
+ * the same function as the context menu and the keyboard shortcut of the current mode.
+ */
+export type EditCommand = 'cut' | 'copy' | 'paste' | 'findReplace'
 
 /**
  * Decides whether the editor may switch to the target mode. It is consulted on every route that

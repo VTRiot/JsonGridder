@@ -13,10 +13,12 @@
     isMenuButton,
     isMenuDropDownButton,
     isMenuLabel,
-    isMenuSeparator
+    isMenuSeparator,
+    isMenuSubmenu
   } from '$lib/typeguards.js'
   import ContextMenuButton from './ContextMenuButton.svelte'
   import ContextMenuDropDownButton from './ContextMenuDropDownButton.svelte'
+  import ContextMenuSubmenu from './ContextMenuSubmenu.svelte'
 
   export let items: ContextMenuItem[]
   export let onRequestClose: () => void
@@ -83,6 +85,8 @@
       <ContextMenuButton {item} {onRequestClose} />
     {:else if isMenuDropDownButton(item)}
       <ContextMenuDropDownButton {item} {onRequestClose} />
+    {:else if isMenuSubmenu(item)}
+      <ContextMenuSubmenu {item} {onRequestClose} />
     {:else if isContextMenuRow(item)}
       <div class="jse-row">
         {#each item.items as rowItem}

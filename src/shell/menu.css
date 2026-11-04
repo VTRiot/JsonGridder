@@ -112,6 +112,12 @@
   content: '\2022\00a0';
 }
 
+.app-menu-separator {
+  height: 1px;
+  margin: 3px 4px;
+  background: var(--app-border);
+}
+
 .app-menu-shortcut {
   color: var(--app-text-muted);
 }

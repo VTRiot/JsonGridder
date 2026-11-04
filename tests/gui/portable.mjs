@@ -41,8 +41,8 @@ const EVERYONE_SID = '*S-1-1-0'
 const DENY_WRITE = `${EVERYONE_SID}:(WD,AD)`
 // 設定が無ければ英語で出る。日本語へ替えて、設定が書かれ、移した先でも効くことを見る
 const UI_CHANGE = { language: 'ja' }
-const UI_LABELS_EN = 'text,tree,table'
-const UI_LABELS_JA = 'テキスト,ツリー,表'
+const UI_LABELS_EN = 'tree,table'
+const UI_LABELS_JA = 'ツリー,表'
 const USER_CHOICE_KEY = String.raw`HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.json\UserChoice`
 const CLASSES_KEY = String.raw`HKCU\Software\Classes\.json`
 
@@ -79,7 +79,7 @@ async function waitVisible(app, title) {
 
 const modeLabels = (page) =>
   page.evaluate(() =>
-    [...document.querySelectorAll('.jse-group-button')].map((button) => button.textContent.trim().toLowerCase()).join()
+    [...document.querySelectorAll('.app-view-switch-button')].map((button) => button.textContent.trim().toLowerCase()).join()
   )
 
 const changeLanguage = (page) =>

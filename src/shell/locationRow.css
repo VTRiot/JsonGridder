@@ -1,0 +1,29 @@
+/* 表の場所の行。色は theme.css の役割の変数だけを読む。
+   ツリーの上流の場所の行（navigationBar）と同じ地と文字にそろえる。 */
+.app-location-row {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 0 10px;
+  background: var(--jse-navigation-bar-background);
+  border-bottom: 1px solid var(--app-border);
+  color: var(--app-text);
+  font: 13px var(--jse-font-family);
+}
+
+.app-location-row[hidden] {
+  display: none;
+}
+
+.app-location-segment {
+  white-space: nowrap;
+}
+
+.app-location-row .app-location-separator {
+  width: 9px;
+  height: 9px;
+  color: var(--app-text-muted);
+}

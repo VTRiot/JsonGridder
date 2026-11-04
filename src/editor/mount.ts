@@ -7,6 +7,7 @@ import {
   Mode,
   type Content,
   type ContentErrors,
+  type EditCommand,
   type JSONEditorPropsOptional,
   type JSONEditorSelection,
   type JSONParser,
@@ -28,7 +29,7 @@ export interface EditorView {
 }
 
 interface RawEditor
-  extends Omit<EditorHandle, 'destroy' | 'set' | 'parse' | 'notify' | 'view' | 'setTableTarget' | 'setDocumentFormat'> {
+  extends Omit<EditorHandle, 'destroy' | 'set' | 'parse' | 'notify' | 'view' | 'setTableTarget' | 'setDocumentFormat' | 'probeMode'> {
   set(content: Content, options?: { mode?: Mode; tableTarget?: JSONPath }): void
 }
 
@@ -53,6 +54,17 @@ export interface EditorHandle {
   view(): EditorView
   /** 確定前の入力を今の対象へ入れてから、表の対象を替える。 */
   setTableTarget(path: JSONPath): void
+  /**
+   * 今の文書が `target` の表示へ入れるかを、切り替えの門番と同じ検査で見る。知らせは出さず、表示も替えない。
+   * 画面の補助（ボタンを押せるか）のためだけに使う。切り替えの守りは門番が持つ。
+   */
+  probeMode(target: Mode): boolean | Promise<boolean>
+  /**
+   * 編集の命令（Edit メニュー）を、今の表示の右クリックとキーと同じ関数で走らせる。門番の答えを
+   * 待つ間は走らせず false。テキストの表示は findReplace だけで、切り取り、コピー、貼り付けは
+   * 呼び手が CodeMirror へ直接行う。
+   */
+  runEditCommand(command: EditCommand): boolean
   destroy(): Promise<void>
 }
 
@@ -117,6 +129,8 @@ export function mountEditor(
   const stopCatching = catchUnhandledErrors(report)
   const parser = documentParser(props.parser ?? strictParser)
   const view: EditorView = { mode: props.mode ?? Mode.tree, tableTarget: props.tableTarget ?? [] }
+  // 門番と同じ検査を、知らせを出さずに走らせる。押せるかの表示だけに使う
+  const quietGuard = createModeGuard({ parser, scanner, notify: () => {} })
 
   // 無いときは上流の動作のまま。案内の画面の Edit はモーダルを開く
   const viewProps: JSONEditorPropsOptional = onViewChange
@@ -177,6 +191,8 @@ export function mountEditor(
       flushSync()
       view.tableTarget = path
     },
+    probeMode: (target) => quietGuard(target, editor.get()),
+    runEditCommand: (command) => editor.runEditCommand(command),
     async destroy() {
       stopCatching()
       notice.destroy()

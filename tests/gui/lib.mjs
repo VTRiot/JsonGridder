@@ -310,12 +310,21 @@ export function createReport(name) {
   }
 }
 
+/**
+ * 殻の表示の切り替え（Step10）。Tree と Table だけで、テキストのボタンは無い。
+ * テキストの表示は、テキストでしか開けない文書を開いたときだけ出る。
+ */
+const SHELL_MODE_LABELS = { text: 'テキスト', tree: 'ツリー', table: '表' }
+
 export function clickMode(page, label) {
-  return page.click(`.jse-group-button:has-text("${label}")`, { timeout: SELECTOR_TIMEOUT_MS })
+  return page.click(`.app-view-switch-button:has-text("${label}")`, { timeout: SELECTOR_TIMEOUT_MS })
 }
 
 export const activeMode = (page) =>
-  page.evaluate(() => document.querySelector('.jse-group-button.jse-selected')?.textContent.trim() ?? '')
+  page.evaluate(
+    (labels) => labels[document.querySelector('.app-view-switch')?.dataset.mode] ?? '',
+    SHELL_MODE_LABELS
+  )
 
 /** 表示のボタンを押し、その表示へ切り替わったかを返す。押せただけでは切り替わったと言えない。 */
 export async function switchMode(page, label) {
@@ -333,17 +342,18 @@ export async function switchMode(page, label) {
  * DOM に無いので、テキストの表示の文書は DOM でなくこちらで判定する。
  */
 export const readDocument = (page) =>
-  page.evaluate(() => {
+  page.evaluate((labels) => {
     const content = document.querySelector('.cm-content')
     return {
-      mode: document.querySelector('.jse-group-button.jse-selected')?.textContent.trim() ?? '',
+      mode: labels[document.querySelector('.app-view-switch')?.dataset.mode] ?? '',
       dom: content?.textContent ?? null,
       doc: content?.cmTile?.root?.view?.state.doc.toString() ?? null,
       body: document.querySelector('.jse-main')?.innerText ?? ''
     }
-  })
+  }, SHELL_MODE_LABELS)
 
-export const MODES = ['表', 'ツリー', 'テキスト']
+/** 殻の切り替えで押せる表示。テキストは押して入れない（Step10 D3）。 */
+export const MODES = ['表', 'ツリー']
 
 /** 試験の入口。--check は机を使わず、部品の有無だけを見る。 */
 export async function runCli(moduleUrl, run) {

@@ -3,37 +3,64 @@
 :root {
   color-scheme: light;
 
-  /* ライト（案 A 藤）。ごく薄い藤色の白の地に、パステルの薄紫をワンポイントに置く。 */
-  --app-frame: #eeeaf5;
-  --app-bg: #f7f5fb;
-  --app-surface: #eeeaf5;
-  --app-header: #eeeaf5;
+  /* ライト（案 A 藤）。少し濁した薄い藤色の地に、パステルの薄紫をワンポイントに置く。
+     地と面は白に寄せない（L* 95 以下。目に刺さらないように step9_008 で濁した）。
+     地を下げた分、補助の文字・JSON の色・状態の色を少し濃くし、地と面の全部で 4.5 以上を保つ。 */
+  --app-frame: #e0dbea;
+  --app-bg: #eae6f1;
+  --app-surface: #e0dbea;
+  --app-header: #e0dbea;
   --app-menu-bg: var(--app-surface);
-  --app-border: #d9d2e8;
+  --app-border: #c6bdd8;
   --app-text: #2b2540;
-  --app-text-muted: #5e5378;
+  --app-text-muted: #54496c;
   --app-accent: #b9a3e3;
   --app-accent-text: #2b2540;
   --app-selection: color-mix(in srgb, var(--app-accent) 35%, var(--app-bg));
-  --app-selection-inactive: #e6e1f0;
-  --app-hover: #e8e3f2;
+  --app-selection-inactive: #d9d3e5;
+  --app-hover: #dbd5e7;
   --app-find: #f2d36b;
   --app-find-text: #2b2540;
-  --app-error: #b3261e;
-  --app-success: #25682b;
-  --app-warning: #8a5300;
+  --app-error: #a01f18;
+  --app-success: #205c26;
+  --app-warning: #784800;
   --app-notice-bg: #3a2f5c;
   --app-notice-text: #ffffff;
-  --app-row-odd: #f1eef8;
+  /* 選んでいる表示（Tree / Table）。強調の藤ではなく、地に調和する薄い緑（D4）。
+     文字と地は 4.5 以上、縁とメニューの行の地（--app-surface）は 3 以上（contrast.mjs が測る）。 */
+  --app-switch-selected-bg: #c6e6c6;
+  --app-switch-selected-text: #1d3b22;
+  --app-switch-selected-border: #4a8450;
+  /* テキストでしか開けない文書の警告の帯（D6）。濁した藤の地に馴染む薄い山吹。文字と地は 4.5 以上（contrast.mjs が測る）。 */
+  --app-banner-bg: #f1dc9c;
+  --app-banner-text: #2b2540;
+  --app-banner-border: #d6b65a;
+  --app-banner-icon: var(--app-warning);
+  /* 翻訳の右クリックのサブメニューの枠（F6）。有料は暖かい金茶、無料は緑。言葉も残すので色だけに頼らない。
+     メニューの地（--app-surface）と選んだ行の地（--app-selection）の両方で 4.5 以上（contrast.mjs が測る）。 */
+  --app-translate-paid: #704c00;
+  --app-translate-free: #1f5a2c;
+  /* 翻訳の設定のダイアログのまとまりの層（F7）。無料枠は無料の緑、有料は有料の金、以前のキーは
+     どちらとも違う薔薇（操作を求める注意）、モデルと動きは中立の一段明るい面。縁の左の太線で区切る。
+     本文・補助の文字・状態の色が、どの面でも 4.5 以上（contrast.mjs が測る）。 */
+  --app-card-free-bg: #d8e7d9;
+  --app-card-free-border: #4a8450;
+  --app-card-paid-bg: #efe2c2;
+  --app-card-paid-border: #9c7420;
+  --app-card-legacy-bg: #f0dbe2;
+  --app-card-legacy-border: #a8506e;
+  --app-card-options-bg: #ebe7f2;
+  --app-card-options-border: #a99cc4;
+  --app-row-odd: #e5e1ee;
   --app-active-line: rgba(43, 37, 64, 0.05);
   --app-overlay: rgba(43, 37, 64, 0.35);
   --app-shadow: rgba(43, 37, 64, 0.25);
 
   --app-json-key: #8a2f6a;
-  --app-json-string: #2a6636;
-  --app-json-number: #1f5fa8;
-  --app-json-boolean: #6b3fa0;
-  --app-json-null: #5e5378;
+  --app-json-string: #245a2f;
+  --app-json-number: #1a5394;
+  --app-json-boolean: #633a94;
+  --app-json-null: #54496c;
 
   /* 桜の飾り。見た目で調整する定数。幅はエディタの幅に対する割合。ライトは濃く、ダークは薄く出す。 */
   --sakura-width: 22%;
@@ -69,6 +96,26 @@
   --app-warning: #ffd166;
   --app-notice-bg: #3b1f1c;
   --app-notice-text: var(--app-text);
+  --app-switch-selected-bg: #7fd8a0;
+  --app-switch-selected-text: var(--app-bg);
+  --app-switch-selected-border: var(--app-switch-selected-bg);
+  /* 警告の帯。夜桜の地に、提灯の金の文字。 */
+  --app-banner-bg: #3a3020;
+  --app-banner-text: var(--app-warning);
+  --app-banner-border: #5c4a26;
+  --app-banner-icon: var(--app-warning);
+  /* 翻訳のサブメニューの枠。夜桜の地に、有料は提灯の金、無料は若葉の緑。 */
+  --app-translate-paid: #f0c35a;
+  --app-translate-free: #7fd8a0;
+  /* 翻訳の設定のまとまりの層。夜桜の地に、若葉の緑、提灯の金、薔薇、一段明るい紫紺をうっすら重ねる。 */
+  --app-card-free-bg: #1a2a2c;
+  --app-card-free-border: #3f8a62;
+  --app-card-paid-bg: #2b2522;
+  --app-card-paid-border: #8c6c2c;
+  --app-card-legacy-bg: #2f1c2c;
+  --app-card-legacy-border: #a85478;
+  --app-card-options-bg: #252040;
+  --app-card-options-border: #4a4270;
   --app-row-odd: #1c1830;
   --app-active-line: rgba(255, 255, 255, 0.06);
   --app-overlay: rgba(0, 0, 0, 0.55);
@@ -245,6 +292,58 @@ body {
   color: var(--app-text);
 }
 
+/* テキストの表示の lint の印（ガターの印と、範囲の下線）。上流（@codemirror/lint）は data: の SVG の画像で描くので、
+   CSP の img-src に data: が要る。ここで CSS だけの形と役割の色に置き換え、data: の画像を一度も読ませない（B68）。
+   上流の規則は基本テーマの class と印の class の 2 つ分の強さなので、:root と .cm-editor を重ねて勝たせる。
+   形は上流と同じ（誤り＝丸、警告＝三角、情報＝四角）。上流は hint の印を描かないので、ここでも描かない。 */
+:root .cm-editor .cm-lint-marker {
+  content: normal;
+  box-sizing: border-box;
+}
+
+:root .cm-editor .cm-lint-marker-error {
+  border: 0.15em solid var(--app-error);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--app-error) 55%, var(--app-bg));
+}
+
+:root .cm-editor .cm-lint-marker-warning {
+  clip-path: polygon(50% 5%, 95% 90%, 5% 90%);
+  background: var(--app-warning);
+}
+
+:root .cm-editor .cm-lint-marker-info {
+  border: 0.15em solid var(--app-json-number);
+  border-radius: 0.1em;
+  background: color-mix(in srgb, var(--app-json-number) 55%, var(--app-bg));
+}
+
+:root .cm-editor .cm-lintRange-error,
+:root .cm-editor .cm-lintRange-warning,
+:root .cm-editor .cm-lintRange-info,
+:root .cm-editor .cm-lintRange-hint {
+  background-image: none;
+  text-decoration-line: underline;
+  text-decoration-style: wavy;
+  text-decoration-skip-ink: none;
+}
+
+:root .cm-editor .cm-lintRange-error {
+  text-decoration-color: var(--app-error);
+}
+
+:root .cm-editor .cm-lintRange-warning {
+  text-decoration-color: var(--app-warning);
+}
+
+:root .cm-editor .cm-lintRange-info {
+  text-decoration-color: var(--app-json-number);
+}
+
+:root .cm-editor .cm-lintRange-hint {
+  text-decoration-color: var(--app-text-muted);
+}
+
 /* 桜の飾り。ライトとダークで画像を替え、エディタの右下の隅に重ねる。クリックを妨げない。 */
 .app-editor {
   position: relative;
@@ -269,7 +368,8 @@ body {
   background-image: url('../../assets/theme/sakura.png');
 }
 
-/* 選んだボタン（Text / Tree / Table）は強調の色。上流の同じ強さの規則が後から読まれるので、:root を重ねて勝たせる。 */
+/* 上流の選んだボタン（Text / Tree / Table）は強調の色。主の画面では殻の切り替えに置き換えたので、
+   ここが効くのは入れ子の値を開くモーダルの中のエディタだけ。上流の同じ強さの規則が後から読まれるので、:root を重ねて勝たせる。 */
 :root:root .jse-menu .jse-button.jse-group-button.jse-selected {
   background: var(--app-accent);
   border-color: var(--app-accent);

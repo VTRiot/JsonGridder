@@ -17,6 +17,14 @@ export interface OpenFlowOptions {
   onMissing(path: string): void
 }
 
+export interface OpenFlowCall extends Pick<OpenOptions, 'discardConfirmed'> {
+  /**
+   * 未保存を見つけたときに Rust の確認（別のファイルを開く確認）を出すか。外の変更の読み直しは
+   * 自分で聞くので false にし、`NeedsUnsavedDecision` を受け取る。
+   */
+  askUnsaved?: boolean
+}
+
 /** 2 つのボタンの確認。1 つ目を押したときだけ true。Esc と×は 2 つ目と同じ。 */
 async function confirm(
   ask: ShellPorts['ask'],
@@ -56,7 +64,10 @@ function failureMessage(outcome: OpenOutcome): string | undefined {
 
 /** 全部の入口が通る 1 関数。確認で断ったら開かず、文書も印も変えない。 */
 export function createOpenFlow({ model, ask, notify, onOpened, onUnsaved, onMissing }: OpenFlowOptions) {
-  return async function open(path: string, { discardConfirmed = false }: Pick<OpenOptions, 'discardConfirmed'> = {}): Promise<OpenOutcome> {
+  return async function open(
+    path: string,
+    { discardConfirmed = false, askUnsaved = true }: OpenFlowCall = {}
+  ): Promise<OpenOutcome> {
     const options: OpenOptions = { discardConfirmed, accept: {} }
 
     for (;;) {
@@ -64,7 +75,9 @@ export function createOpenFlow({ model, ask, notify, onOpened, onUnsaved, onMiss
       let accepted = false
 
       if (outcome.kind === 'NeedsUnsavedDecision') {
-        onUnsaved(path)
+        if (askUnsaved) {
+          onUnsaved(path)
+        }
       } else if (outcome.kind === 'NeedsEncodingConfirm') {
         accepted = await confirm(ask, {
           title: t('app.dialog.encodingTitle'),

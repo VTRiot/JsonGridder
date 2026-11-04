@@ -2,6 +2,7 @@
 //! 画面から許可を増やす口を作らない。
 
 pub mod args;
+pub mod external;
 pub mod task_dialog;
 pub mod unsaved;
 
@@ -20,7 +21,7 @@ use crate::file::session::FileState;
 use crate::settings;
 use crate::settings::store::{Change, Settings, Store};
 use crate::window::save_placement;
-use task_dialog::{AskRequest, Level};
+use task_dialog::{AskRequest, CheckedAnswer, CheckedAskRequest, Level};
 use unsaved::{Choice, DocumentReport, Effect, Intent, UnsavedState};
 
 const JSON_EXTENSIONS: [&str; 1] = ["json"];
@@ -240,6 +241,10 @@ pub struct Startup {
     splash_ceremony: bool,
     splash_ceremony_unlocked: bool,
     wrap_lines: bool,
+    hide_targets_in_tree: bool,
+    /// 翻訳が有効か（設定ファイルの値）。画面の項目を出すかの目安だけで、通信の可否は
+    /// 翻訳の仕事を始めるときに Rust が設定ファイルを読み直して決める。キーの有無は載せない。
+    translation_enabled: bool,
 }
 
 #[tauri::command]
@@ -251,6 +256,8 @@ pub fn get_startup(app: AppHandle) -> Startup {
         splash_ceremony,
         splash_ceremony_unlocked,
         wrap_lines,
+        hide_targets_in_tree,
+        translation,
         ..
     } = app.state::<Store>().snapshot();
     Startup {
@@ -261,6 +268,8 @@ pub fn get_startup(app: AppHandle) -> Startup {
         splash_ceremony,
         splash_ceremony_unlocked,
         wrap_lines,
+        hide_targets_in_tree,
+        translation_enabled: translation.enabled,
     }
 }
 
@@ -328,6 +337,15 @@ pub async fn pick_save(
 pub async fn ask(window: WebviewWindow, request: AskRequest) -> Result<usize, String> {
     let parent = window.hwnd().map_err(|error| error.to_string())?.0 as isize;
     tauri::async_runtime::spawn_blocking(move || task_dialog::show(parent, &request))
+        .await
+        .map_err(|error| error.to_string())
+}
+
+/// `ask` にチェックボックスを 1 つ添えた確認（翻訳の確かめの「今後表示しない」）。
+#[tauri::command]
+pub async fn ask_checked(window: WebviewWindow, request: CheckedAskRequest) -> Result<CheckedAnswer, String> {
+    let parent = window.hwnd().map_err(|error| error.to_string())?.0 as isize;
+    tauri::async_runtime::spawn_blocking(move || task_dialog::show_checked(parent, &request))
         .await
         .map_err(|error| error.to_string())
 }

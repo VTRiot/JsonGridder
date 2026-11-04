@@ -1,0 +1,200 @@
+/* 翻訳の設定のダイアログ。色は theme.css の役割の変数だけを使う（ライトとダークは変数が替える）。 */
+.app-translation-dialog {
+  box-sizing: border-box;
+  width: min(36rem, calc(100vw - 4rem));
+  max-height: calc(100vh - 4rem);
+  overflow: auto;
+  padding: 16px 20px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-surface);
+  color: var(--app-text);
+  font-family: var(--jse-font-family);
+  font-size: 13px;
+  box-shadow: 0 4px 16px var(--app-shadow);
+}
+
+.app-translation-dialog::backdrop {
+  background: var(--app-overlay);
+}
+
+.app-translation-title {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.app-translation-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.app-translation-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.app-translation-check {
+  flex-direction: row-reverse;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+}
+
+.app-translation-label {
+  font-weight: 600;
+}
+
+/* まとまりの層（F7）。全部が同じ地だと目が区切りを探すので、まとまりごとに面の色と縁を替える。
+   一般（有効とサービス）はダイアログの地のまま。キーの欄は枠の色（F6 のサブメニューの有料・無料と同じ系統）、
+   以前のキーは注意の色、モデルと動きは中立の一段上の面。地の文の注記はカードにしない。 */
+.app-translation-card {
+  --card-bg: var(--app-surface);
+  --card-border: var(--app-border);
+  padding: 8px 10px;
+  border: 1px solid var(--card-border);
+  border-left-width: 4px;
+  border-radius: 4px;
+  background: var(--card-bg);
+}
+
+.app-translation-card[data-card='free'] {
+  --card-bg: var(--app-card-free-bg);
+  --card-border: var(--app-card-free-border);
+}
+
+.app-translation-card[data-card='paid'] {
+  --card-bg: var(--app-card-paid-bg);
+  --card-border: var(--app-card-paid-border);
+}
+
+.app-translation-card[data-card='legacy'] {
+  --card-bg: var(--app-card-legacy-bg);
+  --card-border: var(--app-card-legacy-border);
+}
+
+.app-translation-card[data-card='options'] {
+  --card-bg: var(--app-card-options-bg);
+  --card-border: var(--app-card-options-border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* 一般のまとまりはダイアログの地のまま（並びだけをまとめる）。 */
+.app-translation-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* 枠の注記は地の文（F5。囲みと地の色で出すと入力欄に見えた）。読み落とさないよう本文の色で出す。 */
+.app-translation-note {
+  margin: 0;
+  color: var(--app-text);
+  line-height: 1.5;
+}
+
+.app-translation-hint {
+  margin: 0;
+  color: var(--app-text-muted);
+  line-height: 1.5;
+}
+
+.app-translation-key-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.app-translation-key-status[data-saved='true'] {
+  color: var(--app-success);
+}
+
+.app-translation-key-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.app-translation-key-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.app-translation-key-input,
+.app-translation-select {
+  box-sizing: border-box;
+  padding: 4px 6px;
+  border: 1px solid var(--app-border);
+  border-radius: 3px;
+  background: var(--app-bg);
+  color: var(--app-text);
+  font: inherit;
+}
+
+.app-translation-key-input::placeholder {
+  color: var(--app-text-muted);
+  opacity: 1;
+}
+
+.app-translation-message {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.app-translation-message[data-kind='error'] {
+  color: var(--app-error);
+}
+
+.app-translation-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.app-translation-button {
+  padding: 4px 14px;
+  border: 1px solid var(--app-border);
+  border-radius: 3px;
+  background: var(--app-selection-inactive);
+  color: var(--app-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.app-translation-button:hover:not(:disabled) {
+  background: var(--app-selection);
+}
+
+.app-translation-button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.app-translation-primary {
+  border-color: var(--app-accent);
+  background: var(--app-accent);
+  color: var(--app-accent-text);
+}
+
+.app-translation-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--app-accent) 82%, white);
+}
+
+.app-translation-dialog :focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 1px;
+}
+
+[hidden].app-translation-note,
+[hidden].app-translation-legacy,
+[hidden].app-translation-card,
+[hidden].app-translation-hint,
+[hidden].app-translation-message,
+[hidden].app-translation-button {
+  display: none;
+}

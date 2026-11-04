@@ -307,8 +307,10 @@ exports[`JSONEditor > render table mode 1`] = `
               >
                 <!---->
               </th>
+              <!---->
               <th
                 class="jse-table-cell jse-table-cell-header svelte-1p86y3c"
+                data-column-path="%2Fid"
               >
                 <button
                   class="jse-column-header svelte-5pxwfq"
@@ -330,8 +332,11 @@ exports[`JSONEditor > render table mode 1`] = `
                   class="jse-column-resizer svelte-1p86y3c"
                 />
               </th>
+              
+              <!---->
               <th
                 class="jse-table-cell jse-table-cell-header svelte-1p86y3c"
+                data-column-path="%2Fname"
               >
                 <button
                   class="jse-column-header svelte-5pxwfq"
@@ -353,9 +358,11 @@ exports[`JSONEditor > render table mode 1`] = `
                   class="jse-column-resizer svelte-1p86y3c"
                 />
               </th>
+              
               <!---->
               <!---->
             </tr>
+            <!---->
             <tr
               class="jse-table-invisible-start-section svelte-1p86y3c"
             >

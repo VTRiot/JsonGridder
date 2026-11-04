@@ -1,0 +1,26 @@
+/* テキストでしか開けない文書の警告の帯（D6）。色は theme.css の役割の変数だけを読む。 */
+.app-invalid-banner {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-top: 1px solid var(--app-banner-border);
+  border-bottom: 1px solid var(--app-banner-border);
+  background: var(--app-banner-bg);
+  color: var(--app-banner-text);
+  font-family: var(--jse-font-family);
+}
+
+.app-invalid-banner[hidden] {
+  display: none;
+}
+
+.app-invalid-banner .app-icon {
+  color: var(--app-banner-icon);
+}
+
+.app-invalid-banner-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

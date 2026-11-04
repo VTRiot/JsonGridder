@@ -56,6 +56,34 @@ describe('実物の呼び出しの形', () => {
     const view = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
     expect(unpackFrame(view as ArrayBuffer)).toEqual({ meta: { revision: 3 }, text: '[1]' })
   })
+
+  it('帯の理由は本文の UTF-8 をそのまま渡して取る', async () => {
+    const calls: [string, unknown][] = []
+    const reason = { kind: 'syntax', at: { line: 1, column: 2 } }
+    const backend = createTauriBackend((async (cmd: string, args: unknown) => {
+      calls.push([cmd, args])
+      return reason
+    }) as never)
+    expect(await backend.diagnose('[名')).toEqual(reason)
+    expect(calls[0][0]).toBe('diagnose_text')
+    expect(new TextDecoder().decode(calls[0][1] as Uint8Array)).toBe('[名')
+  })
+})
+
+describe('検査の表の理由', () => {
+  it('全行が diagnosis を持ち、理由があるのはテキストに限る文書だけ', () => {
+    const rows = golden as {
+      name: string
+      result: { duplicateKey: boolean; reservedKey?: boolean; depthExceeded: boolean; syntaxOk: boolean }
+      diagnosis?: unknown
+    }[]
+    for (const row of rows) {
+      expect(Object.hasOwn(row, 'diagnosis'), row.name).toBe(true)
+      const { duplicateKey, reservedKey = false, depthExceeded, syntaxOk } = row.result
+      const textOnly = !syntaxOk || duplicateKey || reservedKey || depthExceeded
+      expect(row.diagnosis !== null, row.name).toBe(textOnly)
+    }
+  })
 })
 
 describe('検査の表', () => {

@@ -42,6 +42,49 @@ function shortHeadText() {
 
 const SHORT_HEAD = '/wrap-short-head.json'
 
+// 見出しの 2 段（Step10 S6、D8）の文書。入れ子の列（address.city）と 3 段の入れ子（address.geo.lat）、入れ子でない列
+const NESTED = '/nested-header.json'
+const NESTED_ROWS = 60
+const NESTED_SCROLL_PX = 400
+const CITIES = ['Tokyo', 'Osaka', 'Nagoya', 'Sapporo', 'Fukuoka']
+function nestedText() {
+  const rows = Array.from({ length: NESTED_ROWS }, (_, index) => ({
+    id: index,
+    name: `name${index}`,
+    address: { city: CITIES[index % CITIES.length], zip: `100-${String(index).padStart(4, '0')}`, geo: { lat: index / 10, lng: -index / 10 } },
+    tags: ['t']
+  }))
+  return JSON.stringify(rows)
+}
+
+/** 見出しの 2 段の各セルの文字と位置、データの 1 行目のセルの位置。 */
+function headerFacts(page) {
+  return page.evaluate(() => {
+    const rect = (element) => {
+      const r = element.getBoundingClientRect()
+      return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height }
+    }
+    const headerRows = [...document.querySelectorAll('.jse-table-mode tr.jse-table-row-header')]
+    const cells = (tr) =>
+      [...tr.children].map((th) => ({
+        text: th.textContent.trim(),
+        colspan: th.colSpan,
+        rowspan: th.rowSpan,
+        rect: rect(th),
+        name: th.querySelector('.jse-column-name') ? rect(th.querySelector('.jse-column-name')) : null
+      }))
+    const firstRow = document.querySelector('.jse-table-mode tr.jse-table-row:not(.jse-table-row-header) th.jse-table-cell-gutter')?.parentElement
+    const contents = document.querySelector('.jse-table-mode .jse-contents')
+    return {
+      rows: headerRows.map(cells),
+      data: firstRow ? [...firstRow.children].map(rect) : [],
+      dataText: firstRow ? [...firstRow.children].map((cell) => cell.innerText.trim()) : [],
+      contentsTop: contents ? contents.getBoundingClientRect().top : null
+    }
+  })
+}
+const near = (a, b) => Math.abs(a - b) <= EPSILON
+
 const DOC = '/wrap.json'
 const OTHER = '/wrap-other.json'
 
@@ -55,14 +98,17 @@ async function shellPage(browser, base, query = '', first = DOC) {
   const { page, problems } = await h.openPage(browser, `${base}?shell${query}`)
   await page.waitForFunction(() => window.fixture !== undefined)
   await page.evaluate(
-    ([doc, other, shortHead, text, shortText]) => {
+    ([doc, other, shortHead, nested, text, shortText, nestedDoc]) => {
       window.fixture.addFile(doc, text)
       window.fixture.addFile(other, text)
       window.fixture.addFile(shortHead, shortText)
+      window.fixture.addFile(nested, nestedDoc)
     },
-    [DOC, OTHER, SHORT_HEAD, documentText(), shortHeadText()]
+    [DOC, OTHER, SHORT_HEAD, NESTED, documentText(), shortHeadText(), nestedText()]
   )
   await page.evaluate((path) => window.fixture.open(path, {}), first)
+  // 正しい文書は既定でツリーで開く（Step10 D3）。折り返しと列の幅は表で測る
+  await h.switchTo(page, '表')
   await page.waitForSelector('.jse-table-mode td.jse-table-cell')
   await settle(page)
   return { page, problems }
@@ -260,6 +306,7 @@ export async function testWrap(browser, base, helpers) {
 
     // 別の文書を開くと列の幅は戻る
     await page.evaluate((path) => window.fixture.open(path, {}), OTHER)
+    await h.switchTo(page, '表')
     await settle(page)
     const sized = await page.locator('th.jse-column-sized').count()
     record(`${name}: 別の文書を開くと列の幅が戻る`, sized === 0, `sized=${sized}`)
@@ -371,4 +418,135 @@ export async function testWrap(browser, base, helpers) {
     record(`${name}: 見積もりが外れる文書の試験のエラーが 0 件`, problems.length === 0, problems.slice(0, 3).join(' / '))
     await page.close()
   }
+
+  await testHeaderRows(browser, base)
+}
+
+/** 見出しの 2 段（Step10 S6、D8）。入れ子の値は親のキーを上の段、子のキーを下の段に出す。 */
+async function testHeaderRows(browser, base) {
+  const { record } = h
+  const name = '見出しの 2 段'
+
+  // 入れ子の無い文書は今までどおり 1 段
+  {
+    const { page, problems } = await shellPage(browser, base)
+    const flat = await headerFacts(page)
+    record(`${name}: 入れ子の無い文書は 1 段のまま`, flat.rows.length === 1 && flat.rows[0].every((cell) => cell.rowspan === 1 && cell.colspan === 1), JSON.stringify(flat.rows.map((row) => row.map((cell) => cell.text))))
+    record(`${name}: 1 段の文書のエラーが 0 件`, problems.length === 0, problems.slice(0, 3).join(' / '))
+    await page.close()
+  }
+
+  const { page, problems } = await shellPage(browser, base, '', NESTED)
+  const original = await docText(page)
+  let facts = await headerFacts(page)
+  const [top, bottom] = facts.rows
+  record(`${name}: 入れ子の列があると 2 段`, facts.rows.length === 2, String(facts.rows.length))
+  record(
+    `${name}: 上の段は入れ子でない列と親のキー`,
+    JSON.stringify(top?.map((cell) => cell.text)) === JSON.stringify(['', 'id', 'name', 'address', 'tags']),
+    JSON.stringify(top?.map((cell) => cell.text))
+  )
+  record(
+    `${name}: 下の段は子のキー（3 段以上は点でつなぐ）`,
+    JSON.stringify(bottom?.map((cell) => cell.text)) === JSON.stringify(['city', 'zip', 'geo.lat', 'geo.lng']),
+    JSON.stringify(bottom?.map((cell) => cell.text))
+  )
+  record(`${name}: 親のキーは子の列をまとめる（colspan 4）`, top?.[3]?.colspan === 4, String(top?.[3]?.colspan))
+  record(
+    `${name}: 入れ子でない列と行番号の列は 2 段を通す（rowspan 2）`,
+    [0, 1, 2, 4].every((index) => top?.[index]?.rowspan === 2),
+    JSON.stringify(top?.map((cell) => cell.rowspan))
+  )
+  const id = top?.[1]
+  const centerX = (r) => (r.left + r.right) / 2
+  const centerY = (r) => (r.top + r.bottom) / 2
+  record(
+    `${name}: 入れ子でない列のラベルは縦横の中央`,
+    id?.name !== null && near(centerX(id.name), centerX(id.rect)) && Math.abs(centerY(id.name) - centerY(id.rect)) <= EPSILON * 2,
+    JSON.stringify({ name: id?.name, th: id?.rect })
+  )
+  // 列の位置: 見出しのセルとデータのセルの左右が揃う（行番号の列 1 + id + name の後が address.city）
+  const NESTED_FIRST_DATA_INDEX = 3
+  const aligned = (bottom ?? []).every(
+    (cell, index) => near(cell.rect.left, facts.data[NESTED_FIRST_DATA_INDEX + index]?.left) && near(cell.rect.right, facts.data[NESTED_FIRST_DATA_INDEX + index]?.right)
+  )
+  record(`${name}: 下の段のセルはデータの列と揃う`, aligned, JSON.stringify({ bottom: bottom?.map((cell) => [cell.rect.left, cell.rect.right]), data: facts.data.map((r) => [r.left, r.right]) }))
+  record(
+    `${name}: 親のキーのセルは子の列の左端から右端まで`,
+    near(top?.[3]?.rect.left, bottom?.[0]?.rect.left) && near(top?.[3]?.rect.right, bottom?.at(-1)?.rect.right),
+    JSON.stringify({ group: top?.[3]?.rect, first: bottom?.[0]?.rect, last: bottom?.at(-1)?.rect })
+  )
+  record(`${name}: 下の段は上の段の真下`, near(bottom?.[0]?.rect.top, top?.[3]?.rect.bottom), JSON.stringify({ group: top?.[3]?.rect, nested: bottom?.[0]?.rect }))
+  record(`${name}: 表の文字列は引用符なし（D10）`, facts.dataText[NESTED_FIRST_DATA_INDEX] === 'Tokyo' && facts.dataText[2] === 'name0', JSON.stringify(facts.dataText))
+
+  // 送っても 2 段とも上に残る
+  await page.evaluate((px) => {
+    document.querySelector('.jse-table-mode .jse-contents').scrollTop = px
+  }, NESTED_SCROLL_PX)
+  await settle(page)
+  facts = await headerFacts(page)
+  record(
+    `${name}: 送っても 2 段の見出しが上に残る`,
+    near(facts.rows[0]?.[3]?.rect.top, facts.contentsTop) && near(facts.rows[1]?.[0]?.rect.top, facts.rows[0]?.[3]?.rect.bottom),
+    JSON.stringify({ contentsTop: facts.contentsTop, group: facts.rows[0]?.[3]?.rect, nested: facts.rows[1]?.[0]?.rect })
+  )
+  await page.evaluate(() => {
+    document.querySelector('.jse-table-mode .jse-contents').scrollTop = 0
+  })
+  await settle(page)
+
+  // 親のキーのセルを押しても何も起きない
+  await page.locator('th.jse-table-cell-header-group').click()
+  await settle(page)
+  record(`${name}: 親のキーを押しても並べ替えない`, (await docText(page)) === original && (await page.locator('.jse-column-sort-icon').count()) === 0)
+
+  // 下の段の列の幅のドラッグは、その列だけに効く
+  const zipBefore = await headerWidth(page, 'zip')
+  const cityBefore = await headerWidth(page, 'city')
+  const dragged = await dragColumnEdge(page, 'zip', DRAG_PX)
+  const zipAfter = await headerWidth(page, 'zip')
+  record(`${name}: 下の段の列の境目のドラッグで幅が広がる`, dragged && Math.abs(zipAfter - zipBefore - DRAG_PX) <= EPSILON * 2, `${zipBefore} -> ${zipAfter}`)
+  record(`${name}: 隣の列（city）の幅は変わらない`, near(await headerWidth(page, 'city'), cityBefore))
+  facts = await headerFacts(page)
+  record(
+    `${name}: ドラッグの後も見出しとデータの列が揃う`,
+    near(facts.rows[1]?.[1]?.rect.right, facts.data[NESTED_FIRST_DATA_INDEX + 1]?.right) && near(facts.rows[0]?.[3]?.rect.right, facts.rows[1]?.at(-1)?.rect.right),
+    JSON.stringify({ zip: facts.rows[1]?.[1]?.rect, data: facts.data[NESTED_FIRST_DATA_INDEX + 1] })
+  )
+  record(`${name}: ドラッグで文書が変わらない`, (await docText(page)) === original)
+
+  // 下の段の見出しで並べ替えると、列のパス全体（address.city）で並ぶ
+  await page.locator('tr.jse-table-row-header-bottom .jse-column-header', { hasText: 'city' }).click()
+  const sorted = await h.reaches(
+    page,
+    () => {
+      const cities = JSON.parse(window.fixture.text()).map((row) => row.address.city)
+      return cities.every((city, index) => index === 0 || cities[index - 1].localeCompare(city) <= 0)
+    }
+  )
+  record(`${name}: 下の段の見出しの並べ替えは address.city で並ぶ`, sorted, (await docText(page)).slice(0, 120))
+  record(
+    `${name}: 並べ替えの印は押した列（city）に出る`,
+    (await page.locator('tr.jse-table-row-header-bottom th', { hasText: 'city' }).locator('.jse-column-sort-icon').count()) === 1
+  )
+
+  // 検索の欄は 2 段の見出しの下に出る
+  await page.click('td.jse-table-cell >> nth=0')
+  await page.keyboard.press('Control+F')
+  await page.waitForSelector('.jse-search-box', { timeout: h.STATE_TIMEOUT_MS })
+  await settle(page)
+  const search = await page.evaluate(() => ({
+    box: document.querySelector('.jse-search-box').getBoundingClientRect().top,
+    header: document.querySelector('tr.jse-table-row-header-bottom th').getBoundingClientRect().bottom
+  }))
+  record(`${name}: 検索の欄は 2 段目の見出しに重ならない`, search.box >= search.header - EPSILON, JSON.stringify(search))
+  await page.keyboard.press('Escape')
+
+  // 折り返すと見出しの高さが変わっても、下の段は上の段の真下
+  await toggleWrap(page)
+  facts = await headerFacts(page)
+  record(`${name}: 折り返しても下の段は上の段の真下`, near(facts.rows[1]?.[0]?.rect.top, facts.rows[0]?.[3]?.rect.bottom), JSON.stringify({ group: facts.rows[0]?.[3]?.rect, nested: facts.rows[1]?.[0]?.rect }))
+  await toggleWrap(page)
+  record(`${name}: エラーが 0 件`, problems.length === 0, problems.slice(0, 3).join(' / '))
+  await page.close()
 }

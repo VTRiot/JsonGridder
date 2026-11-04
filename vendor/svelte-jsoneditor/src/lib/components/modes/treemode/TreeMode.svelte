@@ -115,6 +115,7 @@
     ContextMenuItem,
     ConvertType,
     DocumentState,
+    EditCommand,
     History,
     HistoryItem,
     InsertType,
@@ -796,6 +797,25 @@
 
       copyPasteModalOpen = true
     }
+  }
+
+  /**
+   * An edit command from outside (an Edit menu). The same functions as Ctrl+X, Ctrl+C, the paste
+   * of the context menu and Ctrl+H.
+   */
+  export function runEditCommand(command: EditCommand): boolean {
+    if (command === 'cut') {
+      handleCut(true)
+    } else if (command === 'copy') {
+      handleCopy(true)
+    } else if (command === 'paste') {
+      handlePasteFromMenu()
+    } else if (command === 'findReplace') {
+      openFind(true)
+    } else {
+      return false
+    }
+    return true
   }
 
   function _paste(clipboardText: string | undefined) {

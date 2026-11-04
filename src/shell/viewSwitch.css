@@ -1,0 +1,54 @@
+/* メニューの行の Tree / Table の切り替え。色は theme.css の役割の変数だけを読む。 */
+.app-menubar-separator {
+  align-self: stretch;
+  width: 1px;
+  margin: 4px 8px;
+  background: var(--app-border);
+}
+
+.app-view-switch {
+  display: inline-flex;
+  align-self: center;
+  gap: 2px;
+  padding: 1px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+}
+
+.app-view-switch-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 12px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: none;
+  color: var(--app-text);
+  font: inherit;
+  cursor: default;
+}
+
+.app-view-switch-button:hover:not(.is-selected):not([aria-disabled='true']) {
+  background: var(--app-hover);
+}
+
+.app-view-switch-button.is-selected {
+  background: var(--app-switch-selected-bg);
+  border-color: var(--app-switch-selected-border);
+  color: var(--app-switch-selected-text);
+}
+
+.app-view-switch-button[aria-disabled='true'] {
+  color: var(--app-text-muted);
+}
+
+.app-view-switch-button:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--app-accent);
+}
+
+.app-icon {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}

@@ -96,6 +96,7 @@
   import type {
     Content,
     ContentErrors,
+    EditCommand,
     History,
     HistoryItem,
     JSONEditorSelection,
@@ -722,6 +723,14 @@
     )
     replaceInput?.focus()
     return true
+  }
+
+  /**
+   * An edit command from outside (an Edit menu). Only findReplace, with the same function as
+   * Ctrl+H. Cut, copy and paste act on the CodeMirror selection, which the caller reaches directly.
+   */
+  export function runEditCommand(command: EditCommand): boolean {
+    return command === 'findReplace' ? handleOpenReplace() : false
   }
 
   function handleToggleSearch() {

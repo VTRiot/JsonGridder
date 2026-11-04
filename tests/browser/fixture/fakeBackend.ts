@@ -1,8 +1,11 @@
 // 状態を持つ偽の読み書き。実物の基準の入れ替えと revision の扱いを同じ形で持つ。
 import { parse } from 'lossless-json'
 import type {
+  DiskStatus,
   Encoding,
+  ExternalFiles,
   FileBackend,
+  TextEditorReply,
   OpenAccept,
   OpenReply,
   SaveConfirmations,
@@ -44,8 +47,14 @@ function formatOf(text: string): TextFormat {
   return { eol, eolDominant: eol, indent, finalNewline: /\n$/.test(text) }
 }
 
-export interface FakeBackend extends FileBackend {
+export interface FakeBackend extends FileBackend, ExternalFiles {
   files: Map<string, string>
+  /** テキストで開いたパス（起動は記録だけ）。 */
+  launches: string[]
+  /** テキストで開くの返事を差し替える（自分の EXE、起動の失敗）。 */
+  nextLaunch: TextEditorReply | null
+  /** 外の変更の見張りの回数。 */
+  diskChecks: number
   writes: { path: string; text: string; encoding?: Encoding }[]
   /** 読み込みの回数。 */
   reads: number
@@ -76,6 +85,9 @@ export function createFakeBackend(files: Record<string, string> = {}): FakeBacke
 
   const backend: FakeBackend = {
     files: new Map(Object.entries(files)),
+    launches: [],
+    nextLaunch: null,
+    diskChecks: 0,
     writes: [],
     reads: 0,
     saveStarts: 0,
@@ -172,6 +184,26 @@ export function createFakeBackend(files: Record<string, string> = {}): FakeBacke
       revision = counter
       path = destination
       return { kind: 'Saved', revision, path: destination, sha256: `sha-${revision}`, backupLeft: null, format: null }
+    },
+
+    /** 実物の `disk_status` と同じ形。中身の比較は基準のテキストとの比較で代える。 */
+    async diskStatus(target: number): Promise<DiskStatus> {
+      backend.diskChecks++
+      if (target === NO_DOCUMENT || target !== revision || path === null) return { kind: 'Stale' }
+      const disk = backend.files.get(path)
+      if (disk === undefined) return { kind: 'Missing' }
+      return disk === baseline ? { kind: 'Same' } : { kind: 'Changed', sha256: `disk:${disk}` }
+    },
+
+    async openInTextEditor(target: number): Promise<TextEditorReply> {
+      if (target === NO_DOCUMENT || target !== revision || path === null) return { kind: 'Stale' }
+      if (backend.nextLaunch) {
+        const reply = backend.nextLaunch
+        backend.nextLaunch = null
+        return reply
+      }
+      backend.launches.push(path)
+      return { kind: 'Opened' }
     }
   }
   return backend

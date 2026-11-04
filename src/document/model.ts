@@ -119,6 +119,16 @@ export class DocumentModel {
     return this.unsaved
   }
 
+  /** 開く処理か保存の途中。外の変更の見張りはこの間は見送る。 */
+  get busy(): boolean {
+    return this.running > 0
+  }
+
+  /** 編集のたびに増える番号。確認の間に編集があったかを比べるのに使う。 */
+  get editEpoch(): number {
+    return this.epoch
+  }
+
   /** 保存を止めている。別のファイルを開き直すまで解けない。 */
   get saveBlocked(): boolean {
     return this.saveStopped

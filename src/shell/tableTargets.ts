@@ -51,7 +51,41 @@ export function findTableTargets(json: unknown): TableTarget[] {
     .map(({ path, rows }) => ({ path, rows }))
 }
 
-/** 文書を開くときの表示。上から順に最初に当たる物。 */
+/** 表の対象として今の文書で使えるか。根の配列か、左ペインに出る配列（`findTableTargets` の 1 つ）。 */
+export function isTableTarget(json: unknown, path: JSONPath): boolean {
+  if (path.length === 0) {
+    return isJSONArray(json)
+  }
+  return findTableTargets(json).some(
+    (target) => target.path.length === path.length && target.path.every((key, index) => key === path[index])
+  )
+}
+
+/**
+ * 外の変更を読み直した後に戻す表示。戻さないときは undefined（開く処理が選んだ表示のまま）。
+ * - 読み直した文書がテキストでしか開けない、またはツリーで開かなかった: 戻さない（テキストかツリーのまま）
+ * - 前の表の対象が新しい文書に無い: 戻さない（ツリーと先頭の候補のまま）
+ * - 前が表: 表と同じ対象。前がツリー: ツリーと同じ対象
+ * - 前がテキスト（undo で戻った形）: 戻さない。テキストは利用者が選ぶ表示ではない（D3）
+ */
+export function viewAfterReload(
+  before: DocumentView,
+  after: DocumentView,
+  reloaded: { json: unknown; textOnly: boolean }
+): DocumentView | undefined {
+  if (reloaded.textOnly || after.mode !== Mode.tree || before.mode === Mode.text) {
+    return undefined
+  }
+  if (!isTableTarget(reloaded.json, before.tableTarget)) {
+    return undefined
+  }
+  return { mode: before.mode, tableTarget: before.tableTarget }
+}
+
+/**
+ * 文書を開くときの表示。上から順に最初に当たる物。
+ * 正しい文書はツリーで開く（D3）。表の対象には候補の先頭を入れておき、表へ移るとそれが出る。
+ */
 export function chooseView(
   text: string,
   { textOnly, sizeClass }: { textOnly: boolean; sizeClass: SizeClass },
@@ -70,8 +104,8 @@ export function chooseView(
   }
 
   if (isJSONArray(json)) {
-    return { mode: Mode.table, tableTarget: [] }
+    return { mode: Mode.tree, tableTarget: [] }
   }
   const [first] = findTableTargets(json)
-  return first ? { mode: Mode.table, tableTarget: first.path } : { mode: Mode.tree, tableTarget: [] }
+  return { mode: Mode.tree, tableTarget: first ? first.path : [] }
 }

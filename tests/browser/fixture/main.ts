@@ -26,11 +26,20 @@ import {
 } from '../../../src/i18n'
 import ja from '../../../src/i18n/ja.json'
 import { startApp } from '../../../src/shell/app'
-import type { AskRequest, DocumentReport, ShellEvent, ShellPorts } from '../../../src/shell/ports'
+import type {
+  AskRequest,
+  DocumentReport,
+  ShellEvent,
+  ShellPorts,
+  TranslateEvent,
+  TranslateItem,
+  TranslationChoice,
+  TranslationSettings
+} from '../../../src/shell/ports'
 import type { SaveDestination } from '../../../src/shell/saveFlow'
 import golden from '../../fixtures/scan-golden.json'
 import { createFakeBackend, type FakeBackend } from './fakeBackend'
-import { goldenScanner } from './goldenScanner'
+import { goldenDiagnoser, goldenScanner } from './goldenScanner'
 
 const SCAN_OK: ScanResult = {
   duplicateKey: false,
@@ -40,6 +49,17 @@ const SCAN_OK: ScanResult = {
   syntaxOk: true
 }
 const goldenRows = new Set((golden as { input: string }[]).map(({ input }) => input))
+const goldenInput = (name: string): string => {
+  const row = (golden as { name: string; input: string }[]).find((candidate) => candidate.name === name)
+  if (row === undefined) {
+    throw new Error(`no golden row: ${name}`)
+  }
+  return row.input
+}
+/** 表にある入力は表の結果、無い入力は検査を通る。殻の試験で Rust の検査の代わりに使う。 */
+const tableScanner: JsonScanner = {
+  scan: (text) => (goldenRows.has(text) ? goldenScanner.scan(text) : Promise.resolve(SCAN_OK))
+}
 
 const target = document.getElementById('app') as HTMLElement
 const params = new URLSearchParams(location.search)
@@ -178,6 +198,13 @@ async function mountShellFixture(): Promise<void> {
       '{\r\n  "meta": {"v": 1.0, "big": 9007199254740993},\r\n  "items": [{"a": 1}]\r\n}',
     '/japanese.json': '[{"名前":"日本語の値"}]',
     '/cells.json': '[{"a":{"c":1}},{"a":3}]',
+    // 翻訳（T4）。件名の重複、送らない値（数、null、空、空白だけ）、入れ子の列、HTML に見える文字列、オブジェクトでない行
+    '/mail.json':
+      '{"mails":[{"subject":"Hello","from":{"name":"Ann"},"size":1.50},{"subject":"Re: Hello","from":{"name":"Bob"},"size":2},{"subject":"Hello","from":{"name":""},"size":null},{"subject":"","from":{"name":"   "}},{"subject":"<img src=x onerror=alert(1)>","from":{"name":"Eve"}},7],"note":"keep 1.0"}',
+    // テキストでしか開けない文書（警告の帯）。本文は検査の表の行と同じ
+    '/duplicate.json': goldenInput('複数行の重複キー（LF）'),
+    '/reserved.json': goldenInput('2 行目の予約のキー'),
+    '/deep.json': goldenInput('上限を超える深さ'),
     'C:\\docs\\日本語 😀.json': '[1]'
   }
   const backend = createFakeBackend(files)
@@ -206,6 +233,7 @@ async function mountShellFixture(): Promise<void> {
   const languageCalls: string[] = []
   const ceremonyCalls: { enabled: boolean; unlock: boolean }[] = []
   const wrapCalls: boolean[] = []
+  const hideTargetsCalls: boolean[] = []
   let answer = 0
   let answers: number[] = []
   let pickedPath: string | null = null
@@ -214,18 +242,140 @@ async function mountShellFixture(): Promise<void> {
   let exits = 0
   let releaseSave = () => {}
   let emit: (event: ShellEvent) => void = () => {}
+  // 翻訳の設定とキーの偽物。キーの値は持たず、渡された回数とどの枠にあるかだけを持つ（Rust と同じくキーを返さない）。
+  // key=saved は無料枠用だけ、key=paid は有料用だけ、key=both は両方。legacy=1 は F5 より前のキーが残っている
+  const keyParam = params.get('key')
+  const initialKeyTiers = keyParam === 'saved' ? ['free'] : keyParam === 'paid' ? ['paid'] : keyParam === 'both' ? ['free', 'paid'] : []
+  const translationState: TranslationSettings = {
+    enabled: params.get('translation') === 'on',
+    service: 'gemini',
+    model: 'gemini-3.1-flash-lite',
+    fallback: true,
+    confirm: params.get('confirm') !== 'off',
+    machineNotice: params.get('machine') !== 'off',
+    keyTiers: initialKeyTiers,
+    hasLegacyKey: params.get('legacy') === '1',
+    services: ['gemini'],
+    tiers: ['free', 'paid'],
+    models: ['gemini-3.1-flash-lite', 'gemini-3.5-flash-lite', 'gemini-3.6-flash']
+  }
+  const TIER_ORDER = ['free', 'paid']
+  const setKeyTier = (tier: string, present: boolean): void => {
+    const next = new Set(translationState.keyTiers)
+    if (present) next.add(tier)
+    else next.delete(tier)
+    translationState.keyTiers = TIER_ORDER.filter((entry) => next.has(entry))
+  }
+  const translationCalls = {
+    keyLengths: [] as number[],
+    keyTiersSaved: [] as string[],
+    clears: [] as string[],
+    moves: [] as string[],
+    saves: [] as TranslationChoice[],
+    confirmSaves: [] as boolean[],
+    machineNoticeSaves: [] as boolean[]
+  }
+  // 確かめのチェックボックス（「今後表示しない」）を閉じるときに入れておくか
+  let checkAnswer = false
+  let loseKeyWrites = false
+  // 翻訳の仕事の偽物（Rust の translate_start と translate_cancel の代わり。通信はしない）。
+  // auto: 全件に「訳:」を付けて返してから終わる。hold: 試験が知らせを送る
+  const translateCalls = { starts: [] as { items: TranslateItem[]; target: string; tier: string }[], cancels: [] as number[] }
+  let translateMode: 'auto' | 'hold' = 'auto'
+  let translateRejectNext: string | null = null
+  let translateJob = 0
+  let translateListener: { job: number; emit: (event: TranslateEvent) => void; done: boolean } | null = null
   const ports: ShellPorts = {
     backend: confirming,
-    scanner: { scan: () => Promise.resolve(SCAN_OK) },
+    scanner: tableScanner,
+    diagnoser: goldenDiagnoser,
+    external: backend,
+    translation: {
+      settings: () => Promise.resolve({ ...translationState, keyTiers: [...translationState.keyTiers] }),
+      saveSettings(choice) {
+        translationCalls.saves.push(choice)
+        Object.assign(translationState, choice)
+        return Promise.resolve()
+      },
+      saveConfirm(confirm) {
+        translationCalls.confirmSaves.push(confirm)
+        translationState.confirm = confirm
+        return Promise.resolve()
+      },
+      saveMachineNotice(shown) {
+        translationCalls.machineNoticeSaves.push(shown)
+        translationState.machineNotice = shown
+        return Promise.resolve()
+      },
+      saveKey(tier, key) {
+        translationCalls.keyLengths.push(key.length)
+        translationCalls.keyTiersSaved.push(tier)
+        if (loseKeyWrites) {
+          return Promise.reject('notSaved')
+        }
+        setKeyTier(tier, true)
+        return Promise.resolve()
+      },
+      clearKey(tier) {
+        translationCalls.clears.push(tier)
+        setKeyTier(tier, false)
+        return Promise.resolve()
+      },
+      moveKey(tier) {
+        translationCalls.moves.push(tier)
+        if (!translationState.hasLegacyKey) {
+          return Promise.reject('noLegacy')
+        }
+        if (translationState.keyTiers.includes(tier)) {
+          return Promise.reject('occupied')
+        }
+        translationState.hasLegacyKey = false
+        setKeyTier(tier, true)
+        return Promise.resolve()
+      },
+      start(items, target, tier, onEvent) {
+        translateCalls.starts.push({ items: items.map((item) => ({ ...item })), target, tier })
+        if (translateRejectNext !== null) {
+          const code = translateRejectNext
+          translateRejectNext = null
+          return Promise.reject(code)
+        }
+        const job = ++translateJob
+        const listener = { job, emit: onEvent, done: false }
+        translateListener = listener
+        if (translateMode === 'auto') {
+          setTimeout(() => {
+            if (listener.done) return
+            onEvent({ kind: 'translated', job, results: items.map(({ id, text }) => ({ id, text: `訳:${text}` })) })
+            listener.done = true
+            onEvent({ kind: 'finished', job, error: null })
+          }, 0)
+        }
+        return Promise.resolve(job)
+      },
+      cancel(job) {
+        translateCalls.cancels.push(job)
+        const listener = translateListener
+        if (listener === null || listener.job !== job || listener.done) {
+          return Promise.resolve(false)
+        }
+        // Rust と同じく、取り消すとすぐ「取り消し」で終わりを知らせ、それ以降の知らせは捨てる
+        listener.done = true
+        listener.emit({ kind: 'finished', job, error: 'cancelled' })
+        return Promise.resolve(true)
+      }
+    },
     getStartup: () =>
       Promise.resolve({
-        version: '0.1.0',
+        version: '0.2.0',
         theme: startupTheme,
         language: startupLanguage,
         recent: [],
         splashCeremony: params.get('ceremony') === 'on',
         splashCeremonyUnlocked: params.get('unlocked') === '1',
-        wrapLines: params.get('wrap') === 'on'
+        wrapLines: params.get('wrap') === 'on',
+        hideTargetsInTree: params.get('hideTargets') === 'on',
+        translationEnabled: translationState.enabled
       }),
     subscribe(onEvent) {
       emit = onEvent
@@ -243,6 +393,10 @@ async function mountShellFixture(): Promise<void> {
     ask(request) {
       asks.push(request)
       return Promise.resolve(answers.shift() ?? answer)
+    },
+    askChecked(request) {
+      asks.push(request)
+      return Promise.resolve({ button: answers.shift() ?? answer, checked: checkAnswer })
     },
     setDocumentState: (report) => reports.push(report),
     saveFinished: (id, ok, report) => finished.push({ id, ok, report }),
@@ -265,6 +419,10 @@ async function mountShellFixture(): Promise<void> {
     },
     setWrapLines(wrap) {
       wrapCalls.push(wrap)
+      return Promise.resolve()
+    },
+    setHideTargetsInTree(hide) {
+      hideTargetsCalls.push(hide)
       return Promise.resolve()
     },
     exit() {
@@ -298,11 +456,49 @@ async function mountShellFixture(): Promise<void> {
       releaseSave()
     },
     saveStarts: () => backend.saveStarts,
+    // 外の変更とテキストで開く（D5）。窓に戻った合図は focus の事件で送る
+    focusWindow: () => window.dispatchEvent(new Event('focus')),
+    diskChecks: () => backend.diskChecks,
+    launches: () => [...backend.launches],
+    nextLaunch: (reply: FakeBackend['nextLaunch']) => {
+      backend.nextLaunch = reply
+    },
     setPickedPath: (path: string | null) => {
       pickedPath = path
     },
     setAnswers: (values: number[]) => {
       answers = values
+    },
+    loseKeyWrites: (lose: boolean) => {
+      loseKeyWrites = lose
+    },
+    translation: () => ({
+      enabledInShell: app.translationEnabled(),
+      keyTiers: [...translationState.keyTiers],
+      hasLegacyKey: translationState.hasLegacyKey,
+      ...translationCalls,
+      ...translateCalls,
+      settingsEnabled: translationState.enabled,
+      settingsConfirm: translationState.confirm,
+      settingsMachineNotice: translationState.machineNotice
+    }),
+    setCheckAnswer: (checked: boolean) => {
+      checkAnswer = checked
+    },
+    setTranslationState: (fields: Partial<TranslationSettings>) => Object.assign(translationState, fields),
+    holdTranslate: (hold: boolean) => {
+      translateMode = hold ? 'hold' : 'auto'
+    },
+    rejectNextTranslate: (code: string) => {
+      translateRejectNext = code
+    },
+    /** 待たせた仕事へ知らせを送る（`job` は今の仕事の番号に替える）。終わった後は送らない（Rust と同じ）。 */
+    emitTranslate: (event: TranslateEvent) => {
+      const listener = translateListener
+      if (listener === null || listener.done) return false
+      if (event.kind === 'finished') listener.done = true
+      listener.emit({ ...event, job: listener.job })
+      return true
     },
     setTarget: (path: string[]) => app.editor.setTableTarget(path),
     setMode: (mode: Mode) => app.editor.updateProps({ mode }),
@@ -333,6 +529,7 @@ async function mountShellFixture(): Promise<void> {
       languageCalls,
       ceremonyCalls,
       wrapCalls,
+      hideTargetsCalls,
       picksForSave,
       titles: reports.map(({ title }) => title),
       picks,
@@ -341,8 +538,13 @@ async function mountShellFixture(): Promise<void> {
   }
 }
 
-/** 製品の既定のままのエディタ。検査だけを表と入力の判定に差し替える。 */
+/**
+ * 製品の既定のままのエディタ。検査だけを表と入力の判定に差し替える。
+ * 言語だけは試験の器で ja に固定する。試験は日本語のボタン名と辞書の文言で探すので、
+ * 製品の既定（英語）に左右されないようにする。
+ */
 function mountProductFixture(): void {
+  setLanguage(params.get('lang') ?? 'ja')
   const prototypeBefore = prototypeNames()
   const changes: string[] = []
   const alerts: string[] = []

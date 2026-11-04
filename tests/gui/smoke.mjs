@@ -55,9 +55,9 @@ export async function run({ exe, out }) {
     report.check('窓が見える', visible, `起動から ${Date.now() - app.startedAt} ms`)
 
     const labels = await page.evaluate(() =>
-      [...document.querySelectorAll('.jse-group-button')].map((button) => button.textContent.trim())
+      [...document.querySelectorAll('.app-view-switch-button')].map((button) => button.textContent.trim())
     )
-    report.check('3 つの表示の名前が日本語', labels.join() === 'テキスト,ツリー,表', labels.join())
+    report.check('2 つの表示の名前が日本語', labels.join() === 'ツリー,表', labels.join())
 
     for (const mode of MODES) {
       await clickMode(page, mode)

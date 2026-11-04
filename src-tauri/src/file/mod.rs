@@ -8,6 +8,7 @@ pub mod decode;
 pub mod encode;
 pub mod format;
 pub mod frame;
+pub mod identity;
 pub mod open;
 pub mod replace;
 pub mod save;

@@ -26,7 +26,7 @@ pub fn record(app: &AppHandle, change: Change) {
     }
 }
 
-async fn on_worker<T: Send + 'static>(
+pub(crate) async fn on_worker<T: Send + 'static>(
     app: AppHandle,
     job: impl FnOnce(&AppHandle) -> T + Send + 'static,
 ) -> Result<T, String> {
@@ -80,6 +80,12 @@ pub async fn set_splash_ceremony(app: AppHandle, enabled: bool, unlock: bool) ->
 #[tauri::command]
 pub async fn set_wrap_lines(app: AppHandle, wrap: bool) -> Result<(), String> {
     on_worker(app, move |app| record(app, Change::WrapLines(wrap))).await
+}
+
+/// ツリー表示のときは左ペインを出さないかを書く。表示だけの設定。
+#[tauri::command]
+pub async fn set_hide_targets_in_tree(app: AppHandle, hide: bool) -> Result<(), String> {
+    on_worker(app, move |app| record(app, Change::HideTargetsInTree(hide))).await
 }
 
 #[tauri::command]

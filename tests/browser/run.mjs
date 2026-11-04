@@ -11,6 +11,7 @@ import { testContrast } from './contrast.mjs'
 import { testEditorFixes } from './editorFixes.mjs'
 import { testSearch } from './search.mjs'
 import { testShell } from './shell.mjs'
+import { testTranslate } from './translate.mjs'
 import { testWrap } from './wrap.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
@@ -88,15 +89,19 @@ async function testDistribution(browser, dist) {
 
   const { server, base } = await serve(dist, cspFromConfig())
   const { page, problems } = await openPage(browser, base)
-  const labels = await modeButtons(page)
-  // 設定が無いので既定の英語で出る
-  record('配布物の 3 つの表示の名前が既定の英語', labels.join() === 'text,tree,table', labels.join())
+  const labels = await page.evaluate(() =>
+    [...document.querySelectorAll('.app-view-switch-button')].map((b) => b.textContent.trim())
+  )
+  // 設定が無いので既定の英語で出る。切り替えは殻の 2 つだけで、上流の Text/Tree/Table は主の画面に出ない
+  record('配布物の切り替えは Tree と Table の 2 つで既定の英語', labels.join() === 'Tree,Table', labels.join())
+  record('配布物の主の画面に上流の表示のボタンが無い', (await modeButtons(page)).length === 0, (await modeButtons(page)).join())
+  record('配布物の既定の表示はツリー', (await page.$('.jse-tree-mode')) !== null)
 
-  const expected = { text: '.cm-editor', tree: '.jse-tree-mode', table: '.jse-table-mode' }
-  for (const [label, selector] of Object.entries(expected)) {
-    await page.click(`.jse-group-button:has-text("${label}")`)
+  const expected = { table: '.jse-table-mode', tree: '.jse-tree-mode' }
+  for (const [mode, selector] of Object.entries(expected)) {
+    await page.click(`.app-view-switch-button[data-mode="${mode}"]`)
     const shown = await page.waitForSelector(selector, { timeout: LOAD_TIMEOUT_MS }).then(() => true, () => false)
-    record(`配布物の ${label} が表示される`, shown)
+    record(`配布物の ${mode} が表示される`, shown)
   }
   const display = await page.evaluate(() => getComputedStyle(document.querySelector('.jse-main')).display)
   record('配布物のスタイルが効く', display === 'flex', display)
@@ -167,19 +172,52 @@ const reaches = (page, fn, arg) =>
     () => false
   )
 
+/** 殻（?shell と配布物）の表示の名前。殻は Tree と Table だけを出し、テキストの表示はどちらも選ばない。 */
+const SHELL_MODES = {
+  テキスト: 'text',
+  text: 'text',
+  ツリー: 'tree',
+  tree: 'tree',
+  Tree: 'tree',
+  表: 'table',
+  table: 'table',
+  Table: 'table'
+}
+
+/**
+ * 殻のある画面は殻の切り替え（`data-mode`）で、無い画面は上流のボタンで今の表示を見る。
+ * 殻のある画面では、モーダルの中のエディタの上流のボタンを主の表示と取り違えない。
+ */
 const reachesMode = (page, label) =>
   reaches(
     page,
-    (expected) => document.querySelector('.jse-group-button.jse-selected')?.textContent.trim() === expected,
-    label
+    ([expected, shellMode]) => {
+      const shell = document.querySelector('.app-view-switch')
+      if (shell) return shell.dataset.mode === shellMode
+      return document.querySelector('.jse-group-button.jse-selected')?.textContent.trim() === expected
+    },
+    [label, SHELL_MODES[label]]
   )
 
 const documentHas = (page, text) => reaches(page, (expected) => window.fixture.text().includes(expected), text)
 
 const documentLacks = (page, text) => reaches(page, (expected) => !window.fixture.text().includes(expected), text)
 
+/**
+ * 表示を切り替える。殻のある画面では殻の切り替えを押す。殻にテキストのボタンは無いので、
+ * テキストの表示は試験の器の setMode（エディタの公開の口。門番を通る）で入る。
+ */
 async function switchTo(page, label) {
-  await page.click(`.jse-group-button:has-text("${label}")`, { timeout: STATE_TIMEOUT_MS }).catch(() => {})
+  const shell = await page.$('.app-view-switch')
+  if (shell && SHELL_MODES[label] === 'text') {
+    await page.evaluate(() => window.fixture.setMode('text')).catch(() => {})
+  } else if (shell) {
+    await page
+      .click(`.app-view-switch-button[data-mode="${SHELL_MODES[label]}"]`, { timeout: STATE_TIMEOUT_MS })
+      .catch(() => {})
+  } else {
+    await page.click(`.jse-group-button:has-text("${label}")`, { timeout: STATE_TIMEOUT_MS }).catch(() => {})
+  }
   return reachesMode(page, label)
 }
 
@@ -767,10 +805,7 @@ await build({
 
 /** 製品の既定のエディタの群を回す。`only` は群の名前の一覧で、変異の確かめが使う。 */
 async function testProductDefaults(browser, fixture, only) {
-  const { server, base } = await serve(
-    fixture,
-    "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
-  )
+  const { server, base } = await serve(fixture, "default-src 'self'; style-src 'self' 'unsafe-inline'")
   await testEditorFixes(
     browser,
     base,
@@ -780,7 +815,7 @@ async function testProductDefaults(browser, fixture, only) {
   server.close()
 }
 
-/** 製品の既定は日本語の辞書なので、ボタンの名前が違う。 */
+/** 製品の既定の入口（?product）は試験の器で ja に固定しているので、ボタンの名前が日本語になる。 */
 async function cyclesProductModes(page) {
   for (const label of ['ツリー', '表', 'テキスト']) {
     if (!(await switchTo(page, label))) return false
@@ -795,11 +830,15 @@ async function testAppShell(browser, fixture) {
 }
 
 async function testSearchGroup(browser, fixture) {
-  const { server, base } = await serve(
-    fixture,
-    "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
-  )
+  const { server, base } = await serve(fixture, "default-src 'self'; style-src 'self' 'unsafe-inline'")
   await testSearch(browser, base, { record, openPage, switchTo })
+  server.close()
+}
+
+/** 翻訳の右クリックと小窓だけを回す（--only-translate）。全体では殻の試験の中で回る。 */
+async function testTranslateGroup(browser, fixture) {
+  const { server, base } = await serve(fixture, "default-src 'self'; style-src 'self' 'unsafe-inline'")
+  await testTranslate(browser, base, { record, openPage, reaches, switchTo, reachesMode, STATE_TIMEOUT_MS })
   server.close()
 }
 
@@ -822,6 +861,7 @@ const onlyWrap = process.argv.includes('--only-wrap')
 const onlyDocument = process.argv.includes('--only-document')
 const onlySearch = process.argv.includes('--only-search')
 const onlyShell = process.argv.includes('--only-shell')
+const onlyTranslate = process.argv.includes('--only-translate')
 const onlyFixes = process.argv.find((value) => value.startsWith('--only-fixes'))
 const browser = await chromium.launch({ channel: 'msedge', headless: true })
 try {
@@ -829,6 +869,8 @@ try {
     await testContrastGroup(browser, fixture)
   } else if (onlyWrap) {
     await testWrapGroup(browser, fixture)
+  } else if (onlyTranslate) {
+    await testTranslateGroup(browser, fixture)
   } else if (onlySearch) {
     await testSearchGroup(browser, fixture)
   } else if (onlyShell) {

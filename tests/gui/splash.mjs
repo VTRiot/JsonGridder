@@ -21,7 +21,7 @@ function homeWithSettings(settings) {
 
 // 設定のテーマごとに、起動画面の中身（html の data-theme、面の色、文字の色、見えているロゴ、ロゴの読み込み）が期待どおりか
 const THEME_CASES = [
-  ['light', { theme: 'light', ground: 'rgb(247, 245, 251)', text: 'rgb(94, 83, 120)', logo: 'logo-light', loaded: true }],
+  ['light', { theme: 'light', ground: 'rgb(234, 230, 241)', text: 'rgb(84, 73, 108)', logo: 'logo-light', loaded: true }],
   ['dark', { theme: 'dark', ground: 'rgb(24, 21, 40)', text: 'rgb(141, 134, 173)', logo: 'logo-dark', loaded: true }]
 ]
 const PROBE_TIMEOUT_MS = 20000

@@ -3,6 +3,7 @@
     Content,
     ContentErrors,
     ContextMenuItem,
+    EditCommand,
     HistoryItem,
     History,
     HistorySnapshot,
@@ -462,6 +463,27 @@
     } else if (refTableMode) {
       refTableMode.focus()
     }
+  }
+
+  /**
+   * Run an edit command from outside, with the same function as the context menu and the keyboard
+   * shortcut of the current mode. Nothing runs while the mode guard has not answered: the mode can
+   * still change, like undo and the mode buttons wait.
+   */
+  export function runEditCommand(command: EditCommand): boolean {
+    if (checkingMode) {
+      return false
+    }
+    if (refTreeMode) {
+      return refTreeMode.runEditCommand(command)
+    }
+    if (refTableMode) {
+      return refTableMode.runEditCommand(command)
+    }
+    if (refTextMode) {
+      return refTextMode.runEditCommand(command)
+    }
+    return false
   }
 
   export async function refresh(): Promise<void> {

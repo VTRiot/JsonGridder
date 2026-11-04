@@ -30,9 +30,14 @@
     event.stopPropagation()
   }
 
+  /** An open submenu of the context menu closes itself on Escape (and keeps the menu open). */
+  function isInSubmenu(target: EventTarget | null): boolean {
+    return target instanceof Element && target.closest('[data-jse-submenu]') !== null
+  }
+
   function handleKeyDown(event: KeyboardEvent) {
     const combo = keyComboFromEvent(event)
-    if (combo === 'Escape') {
+    if (combo === 'Escape' && !isInSubmenu(event.target)) {
       event.preventDefault()
       event.stopPropagation()
       closeAbsolutePopup(popup.id)
@@ -43,16 +48,32 @@
     closeWhenOutside(event)
   }
 
+  /**
+   * The area the popup can be seen in: the window, narrowed to the element holding the editor. The
+   * application can place the editor in a box smaller than the window that hides its overflow.
+   */
+  function visibleArea(refRootPopup: HTMLDivElement) {
+    const holder = refRootPopup.parentElement?.getBoundingClientRect()
+    return {
+      left: Math.max(0, holder?.left ?? 0),
+      top: Math.max(0, holder?.top ?? 0),
+      right: Math.min(window.innerWidth, holder?.right ?? window.innerWidth),
+      bottom: Math.min(window.innerHeight, holder?.bottom ?? window.innerHeight)
+    }
+  }
+
   function calculateStyle(refRootPopup: HTMLDivElement, options: AbsolutePopupOptions) {
+    const area = visibleArea(refRootPopup)
+
     function calculatePosition() {
       if (options.anchor) {
         const { anchor, width = 0, height = 0, offsetTop = 0, offsetLeft = 0, position } = options
         const { left, top, bottom, right } = anchor.getBoundingClientRect()
 
         const positionAbove =
-          position === 'top' || (top + height > window.innerHeight && top > height)
+          position === 'top' || (top + height > area.bottom && top - area.top > height)
         const positionLeft =
-          position === 'left' || (left + width > window.innerWidth && left > width)
+          position === 'left' || (left + width > area.right && left - area.left > width)
 
         return {
           left: positionLeft ? right - offsetLeft : left + offsetLeft,
@@ -63,8 +84,8 @@
       } else if (typeof options.left === 'number' && typeof options.top === 'number') {
         const { left, top, width = 0, height = 0 } = options
 
-        const positionAbove = top + height > window.innerHeight && top > height
-        const positionLeft = left + width > window.innerWidth && left > width
+        const positionAbove = top + height > area.bottom && top - area.top > height
+        const positionLeft = left + width > area.right && left - area.left > width
 
         return {
           left,
@@ -78,7 +99,18 @@
     }
 
     const rootRect = refRootPopup.getBoundingClientRect()
-    const { left, top, positionAbove, positionLeft } = calculatePosition()
+    const position = calculatePosition()
+    const { positionAbove, positionLeft } = position
+    // Fits on neither side: move it into the area, as far as the area is large enough
+    const { width = 0, height = 0 } = options
+    const top =
+      !positionAbove && position.top + height > area.bottom
+        ? Math.max(area.top, area.bottom - height)
+        : position.top
+    const left =
+      !positionLeft && position.left + width > area.right
+        ? Math.max(area.left, area.right - width)
+        : position.left
 
     const verticalStyling = positionAbove
       ? `bottom: ${rootRect.top - top}px;`

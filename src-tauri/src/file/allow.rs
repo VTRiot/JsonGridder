@@ -11,6 +11,8 @@ use std::sync::{Mutex, PoisonError};
 
 use serde::Serialize;
 
+use super::identity::same_identity;
+
 /// 名前として使えない装置の名前。`\\?\` を付けると作れてしまうので、ここで断る。
 const RESERVED_NAMES: [&str; 22] = [
     "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
@@ -46,8 +48,10 @@ impl GrantedPath {
         &self.display
     }
 
+    /// 同じファイルか。両方の実体が取れれば実体で比べる（ハードリンクは別のパスでも同じ）。
+    /// 片方が無い（新しく作る保存先）など実体が取れなければ、解決したパスで比べる。
     pub fn is_same_file(&self, other: &GrantedPath) -> bool {
-        self.real == other.real
+        same_identity(&self.real, &other.real).unwrap_or_else(|| self.real == other.real)
     }
 }
 

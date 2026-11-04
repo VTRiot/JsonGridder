@@ -2046,6 +2046,122 @@ fn another_spelling_of_the_same_file_passes() {
     }
 }
 
+// ---- 同じファイルの判定（B64）。ハードリンクは別のパスでも同じ実体 ----
+
+/// 開いている文書を `path` へ、編集した `text` で保存する（名前を付けて保存）。
+fn save_as(space: &Workspace, revision: u64, path: &Path, text: &str) -> SaveReply {
+    let request = SaveRequest {
+        revision,
+        path: Some(path.to_str().unwrap().to_owned()),
+        ..SaveRequest::default()
+    };
+    space.state.save(&request, text, &SystemReplacer)
+}
+
+#[test]
+fn a_hard_link_is_the_same_file() {
+    let space = Workspace::new();
+    let path = space.write("doc.json", b"[1]");
+    let link = space.path("linked.json");
+    fs::hard_link(&path, &link).unwrap();
+    let original = granted_path(&space, &path);
+    let linked = granted_path(&space, &link);
+    assert!(original.is_same_file(&linked));
+    assert!(linked.is_same_file(&original));
+}
+
+#[test]
+fn a_different_file_with_the_same_bytes_is_not_the_same_file() {
+    let space = Workspace::new();
+    let path = space.write("doc.json", b"[1]");
+    let copy = space.write("copy.json", b"[1]");
+    let original = granted_path(&space, &path);
+    assert!(!original.is_same_file(&granted_path(&space, &copy)));
+    // 無いファイル（新しく作る保存先）は実体が取れず、解決したパスで比べる
+    assert!(!original.is_same_file(&granted_path(&space, &space.path("new.json"))));
+    assert!(original.is_same_file(&granted_path(&space, &path)));
+}
+
+#[test]
+fn saving_through_a_hard_link_checks_for_an_outside_change() {
+    let space = Workspace::new();
+    let path = space.write("doc.json", b"[1]");
+    let revision = space.open(&path);
+    let link = space.path("linked.json");
+    fs::hard_link(&path, &link).unwrap();
+    space.grant(&link);
+    // 外のアプリが元の名前で書き換える（その場の書き換えなのでリンクは保たれる）
+    fs::write(&path, b"[2]").unwrap();
+
+    assert_eq!(save_as(&space, revision, &link, "[3]"), SaveReply::ExternalChange);
+    assert_eq!(fs::read(&path).unwrap(), b"[2]");
+    assert_eq!(fs::read(&link).unwrap(), b"[2]");
+}
+
+#[test]
+fn saving_over_a_different_file_does_not_compare_it_with_the_baseline() {
+    let space = Workspace::new();
+    let path = space.write("doc.json", b"[1]");
+    let revision = space.open(&path);
+    // 別の実体。中身が基準と違っても、開いているファイルの外の変更とは見なさない
+    let other = space.write("other.json", b"[5]");
+    space.grant(&other);
+
+    revision_of(&save_as(&space, revision, &other, "[3]"));
+    assert_eq!(fs::read(&other).unwrap(), b"[3]");
+    assert_eq!(fs::read(&path).unwrap(), b"[1]");
+}
+
+#[test]
+fn saving_the_baseline_through_a_hard_link_writes_nothing() {
+    let space = Workspace::new();
+    let path = space.write("doc.json", b"[1]");
+    let revision = space.open(&path);
+    let link = space.path("linked.json");
+    fs::hard_link(&path, &link).unwrap();
+    space.grant(&link);
+    let before = fs::metadata(&path).unwrap().modified().unwrap();
+
+    assert_eq!(space.save_baseline(revision, Some(&link), Confirmations::default()), SaveReply::Unchanged);
+    assert_eq!(fs::metadata(&path).unwrap().modified().unwrap(), before);
+    // 書いていないので、2 つの名前は同じ実体のまま
+    assert!(granted_path(&space, &path).is_same_file(&granted_path(&space, &link)));
+}
+
+#[test]
+fn saving_the_baseline_through_a_hard_link_does_not_overwrite_an_outside_change() {
+    let space = Workspace::new();
+    let path = space.write("doc.json", b"[1]");
+    let revision = space.open(&path);
+    let link = space.path("linked.json");
+    fs::hard_link(&path, &link).unwrap();
+    space.grant(&link);
+    fs::write(&path, b"[2]").unwrap();
+
+    assert_eq!(
+        space.save_baseline(revision, Some(&link), Confirmations::default()),
+        SaveReply::ExternalChange
+    );
+    assert_eq!(fs::read(&link).unwrap(), b"[2]");
+}
+
+#[test]
+fn saving_the_baseline_through_a_copy_with_the_same_bytes_writes_it() {
+    let space = Workspace::new();
+    let path = space.write("doc.json", b"[1]");
+    let revision = space.open(&path);
+    let copy = space.write("copy.json", b"[1]");
+    space.grant(&copy);
+
+    // 別の実体なので、開いているファイルの「書かない」判定に入らず、基準を書く
+    let reply = space.save_baseline(revision, Some(&copy), Confirmations::default());
+    let SaveReply::Saved { path: saved_to, .. } = reply else {
+        panic!("{reply:?}");
+    };
+    assert_eq!(saved_to, copy.to_str().unwrap());
+    assert_eq!(fs::read(&copy).unwrap(), b"[1]");
+}
+
 fn short_name(path: &Path) -> Option<PathBuf> {
     let output = Command::new("cmd")
         .args(["/C", "for", "%I", "in", "("])
@@ -2103,4 +2219,237 @@ fn a_new_file_that_appears_during_the_save_is_not_overwritten() {
     assert_eq!(result, Err(WriteFailure::TargetAppeared));
     assert_eq!(fs::read(&path).unwrap(), b"appeared");
     space.expect_names(&["new.json"]);
+}
+
+// --- 外の変更の見張りとテキストで開く（D5） ---
+
+use super::session::{DiskStatus, NO_DOCUMENT};
+use crate::shell::external::{TextEditorLauncher, TextEditorReply, open_in_text_editor};
+
+/// 外の編集の後の時刻のずれ。NTFS の時刻の分解能（100 ns）より十分に大きければよい。
+const OUTSIDE_EDIT_LATER: Duration = Duration::from_secs(2);
+
+/// 中身を替え、更新時刻を `modified` にする。サイズと時刻を決めた形で外の編集を作る。
+fn rewrite_with_time(path: &Path, bytes: &[u8], modified: SystemTime) {
+    fs::write(path, bytes).unwrap();
+    File::options()
+        .write(true)
+        .open(path)
+        .unwrap()
+        .set_modified(modified)
+        .unwrap();
+}
+
+#[test]
+fn disk_status_is_same_while_the_disk_matches_the_baseline() {
+    let space = Workspace::new();
+    let path = space.write("a.json", b"[1]");
+    let revision = space.open(&path);
+    assert_eq!(space.state.disk_status(revision), DiskStatus::Same);
+    assert_eq!(space.state.disk_status(revision), DiskStatus::Same);
+}
+
+#[test]
+fn disk_status_reports_an_outside_change_with_its_digest() {
+    let space = Workspace::new();
+    let path = space.write("a.json", b"[1]");
+    let revision = space.open(&path);
+    fs::write(&path, b"[22]").unwrap();
+    assert_eq!(
+        space.state.disk_status(revision),
+        DiskStatus::Changed {
+            sha256: digest_of(&path)
+        }
+    );
+}
+
+#[test]
+fn disk_status_reports_a_vanished_file_as_missing() {
+    let space = Workspace::new();
+    let path = space.write("a.json", b"[1]");
+    let revision = space.open(&path);
+    fs::remove_file(&path).unwrap();
+    assert_eq!(space.state.disk_status(revision), DiskStatus::Missing);
+}
+
+#[test]
+fn disk_status_is_stale_for_an_old_revision_and_for_no_document() {
+    let space = Workspace::new();
+    assert_eq!(space.state.disk_status(NO_DOCUMENT), DiskStatus::Stale);
+    let path = space.write("a.json", b"[1]");
+    let revision = space.open(&path);
+    let saved = revision_of(&space.save(revision, "[2]"));
+    assert_eq!(space.state.disk_status(revision), DiskStatus::Stale);
+    // 自分の保存の直後は外の変更と見なさない
+    assert_eq!(space.state.disk_status(saved), DiskStatus::Same);
+}
+
+#[test]
+fn disk_status_does_not_read_again_while_the_size_and_time_stay_the_same() {
+    let space = Workspace::new();
+    let path = space.write("a.json", b"[1]");
+    let modified = fs::metadata(&path).unwrap().modified().unwrap();
+    let revision = space.open(&path);
+    // 1 回目は全部を読んで確かめ、サイズと時刻を覚える
+    assert_eq!(space.state.disk_status(revision), DiskStatus::Same);
+    // 同じサイズと時刻のまま中身が変わっても、読まずに Same（数字の札の仮置き）。保存直前の照合が止める
+    rewrite_with_time(&path, b"[2]", modified);
+    assert_eq!(space.state.disk_status(revision), DiskStatus::Same);
+    assert_eq!(space.save(revision, "[3]"), SaveReply::ExternalChange);
+}
+
+#[test]
+fn disk_status_reads_again_when_the_time_changes() {
+    let space = Workspace::new();
+    let path = space.write("a.json", b"[1]");
+    let modified = fs::metadata(&path).unwrap().modified().unwrap();
+    let revision = space.open(&path);
+    assert_eq!(space.state.disk_status(revision), DiskStatus::Same);
+    // 同じサイズで中身と時刻が変わる（ふつうの外の編集）
+    rewrite_with_time(&path, b"[2]", modified + OUTSIDE_EDIT_LATER);
+    assert!(matches!(space.state.disk_status(revision), DiskStatus::Changed { .. }));
+}
+
+/// 起動を記録するだけの偽物。
+struct RecordingLauncher {
+    executable: Option<PathBuf>,
+    result: Result<(), u32>,
+    launched: RefCell<Vec<String>>,
+}
+
+impl RecordingLauncher {
+    fn new(executable: Option<PathBuf>) -> Self {
+        Self {
+            executable,
+            result: Ok(()),
+            launched: RefCell::new(Vec::new()),
+        }
+    }
+}
+
+impl TextEditorLauncher for RecordingLauncher {
+    fn text_executable(&self) -> Option<PathBuf> {
+        self.executable.clone()
+    }
+
+    fn launch(&self, path: &str) -> Result<(), u32> {
+        self.launched.borrow_mut().push(path.to_owned());
+        self.result
+    }
+}
+
+#[test]
+fn open_in_text_editor_uses_the_baseline_path() {
+    let space = Workspace::new();
+    let path = space.write("a.json", b"[1]");
+    let revision = space.open(&path);
+    let other = space.write("notepad.exe", b"");
+    let own = space.write("jsongridder.exe", b"");
+    let launcher = RecordingLauncher::new(Some(other));
+    assert_eq!(
+        open_in_text_editor(&space.state, revision, &launcher, Some(&own)),
+        TextEditorReply::Opened
+    );
+    assert_eq!(*launcher.launched.borrow(), vec![path.to_str().unwrap().to_owned()]);
+}
+
+#[test]
+fn open_in_text_editor_refuses_no_document_and_an_old_revision() {
+    let space = Workspace::new();
+    let launcher = RecordingLauncher::new(None);
+    assert_eq!(
+        open_in_text_editor(&space.state, NO_DOCUMENT, &launcher, None),
+        TextEditorReply::Stale
+    );
+    let path = space.write("a.json", b"[1]");
+    let revision = space.open(&path);
+    revision_of(&space.save(revision, "[2]"));
+    assert_eq!(
+        open_in_text_editor(&space.state, revision, &launcher, None),
+        TextEditorReply::Stale
+    );
+    assert!(launcher.launched.borrow().is_empty());
+}
+
+#[test]
+fn open_in_text_editor_does_not_launch_itself() {
+    let space = Workspace::new();
+    let path = space.write("a.json", b"[1]");
+    let revision = space.open(&path);
+    let own = space.write("jsongridder.exe", b"");
+    // 関連付けは別の書き方（大文字）で同じ実体を指す
+    let association = PathBuf::from(own.to_str().unwrap().to_uppercase());
+    let launcher = RecordingLauncher::new(Some(association));
+    assert_eq!(
+        open_in_text_editor(&space.state, revision, &launcher, Some(&own)),
+        TextEditorReply::SelfAssociated
+    );
+    assert!(launcher.launched.borrow().is_empty());
+}
+
+#[test]
+fn open_in_text_editor_does_not_launch_itself_through_a_hard_link() {
+    let space = Workspace::new();
+    let path = space.write("a.json", b"[1]");
+    let revision = space.open(&path);
+    let own = space.write("jsongridder.exe", b"MZ");
+    // 関連付けは自分の EXE へのハードリンク（別の名前、同じ実体）
+    let link = space.path("linked-editor.exe");
+    fs::hard_link(&own, &link).unwrap();
+    let launcher = RecordingLauncher::new(Some(link));
+    assert_eq!(
+        open_in_text_editor(&space.state, revision, &launcher, Some(&own)),
+        TextEditorReply::SelfAssociated
+    );
+    assert!(launcher.launched.borrow().is_empty());
+}
+
+#[test]
+fn open_in_text_editor_launches_a_different_file_with_the_same_bytes() {
+    let space = Workspace::new();
+    let path = space.write("a.json", b"[1]");
+    let revision = space.open(&path);
+    let own = space.write("jsongridder.exe", b"MZ");
+    // 中身も大きさも同じだが、別の実体（写し）
+    let copy = space.write("copied-editor.exe", b"MZ");
+    let launcher = RecordingLauncher::new(Some(copy));
+    assert_eq!(
+        open_in_text_editor(&space.state, revision, &launcher, Some(&own)),
+        TextEditorReply::Opened
+    );
+    assert_eq!(*launcher.launched.borrow(), vec![path.to_str().unwrap().to_owned()]);
+}
+
+/// 本物の関連付けを引くだけ（起動しない）。このマシンの `.txt` の既定のアプリに依るので、既定では回さない。
+/// `cargo test --lib -- --ignored the_text_association_can_be_read` で、FFI の呼び方が通ることを見る。
+#[test]
+#[ignore]
+fn the_text_association_can_be_read() {
+    use crate::shell::external::SystemLauncher;
+    let executable = SystemLauncher.text_executable();
+    println!("text executable: {executable:?}");
+    if let Some(executable) = executable {
+        assert!(executable.is_absolute(), "{executable:?}");
+    }
+}
+
+#[test]
+fn open_in_text_editor_reports_a_failed_launch_and_a_missing_file() {
+    let space = Workspace::new();
+    let path = space.write("a.json", b"[1]");
+    let revision = space.open(&path);
+    let mut launcher = RecordingLauncher::new(None);
+    launcher.result = Err(ERROR_ACCESS_DENIED);
+    assert_eq!(
+        open_in_text_editor(&space.state, revision, &launcher, None),
+        TextEditorReply::Failed {
+            code: ERROR_ACCESS_DENIED
+        }
+    );
+    fs::remove_file(&path).unwrap();
+    assert_eq!(
+        open_in_text_editor(&space.state, revision, &launcher, None),
+        TextEditorReply::Missing
+    );
+    assert_eq!(launcher.launched.borrow().len(), 1);
 }

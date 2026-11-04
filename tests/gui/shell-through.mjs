@@ -317,7 +317,7 @@ async function settings({ report, exe, out, home, file }) {
     )
     report.check('手で直した大きさが起動で効く', Math.abs(inner.width - placed.width) <= SCREEN_TOLERANCE_PX, inner.width)
     report.check('手で直したテーマが起動で効く', inner.theme === 'dark', inner.theme)
-    await openMenuItem(page, 1, accessStripped('app.menu.light'))
+    await openMenuItem(page, 2, accessStripped('app.menu.light'))
     report.check('Light が設定へ保存される', await until(() => readSettings(app)?.theme === 'light'))
     const recent = await recentLabels(page)
     report.check('手で直した履歴がメニューに出る', recent.includes(file), recent.join())
@@ -342,7 +342,7 @@ async function settings({ report, exe, out, home, file }) {
 
     fs.writeFileSync(settingsPath, '{}')
     fs.chmodSync(settingsPath, 0o444)
-    await openMenuItem(page, 1, accessStripped('app.menu.dark'))
+    await openMenuItem(page, 2, accessStripped('app.menu.dark'))
     const denied = await waitNotice(page, say('app.notice.settingsUnwritable'))
     report.check('書けない設定で落ちず知らせる', denied === say('app.notice.settingsUnwritable'), denied)
     report.check('書けなくても動き続ける', app.child.exitCode === null)

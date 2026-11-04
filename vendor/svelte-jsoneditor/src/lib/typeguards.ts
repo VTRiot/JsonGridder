@@ -8,6 +8,7 @@ import type {
   MenuLabel,
   MenuSeparator,
   MenuSpace,
+  MenuSubmenu,
   ValidationError,
   NestedValidationError,
   SvelteActionRenderer,
@@ -64,6 +65,10 @@ export function isMenuDropDownButton(item: unknown): item is MenuDropDownButton 
         // @ts-ignore
         Array.isArray(item['items'])
     : false
+}
+
+export function isMenuSubmenu(item: unknown): item is MenuSubmenu {
+  return isObject(item) && item.type === 'submenu' && Array.isArray(item.items)
 }
 
 export function isContextMenuRow(item: unknown): item is ContextMenuRow {

@@ -7,6 +7,18 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": true
+    },
+    "diagnosis": {
+      "kind": "duplicateKey",
+      "key": "a",
+      "at": {
+        "line": 1,
+        "column": 8
+      },
+      "first": {
+        "line": 1,
+        "column": 2
+      }
     }
   },
   {
@@ -17,6 +29,18 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": true
+    },
+    "diagnosis": {
+      "kind": "duplicateKey",
+      "key": "a",
+      "at": {
+        "line": 1,
+        "column": 9
+      },
+      "first": {
+        "line": 1,
+        "column": 3
+      }
     }
   },
   {
@@ -28,7 +52,19 @@
       "depthExceeded": false,
       "syntaxOk": true
     },
-    "parserRejects": true
+    "parserRejects": true,
+    "diagnosis": {
+      "kind": "duplicateKey",
+      "key": "a",
+      "at": {
+        "line": 1,
+        "column": 8
+      },
+      "first": {
+        "line": 1,
+        "column": 2
+      }
+    }
   },
   {
     "name": "エスケープで書いた重複キー",
@@ -38,6 +74,18 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": true
+    },
+    "diagnosis": {
+      "kind": "duplicateKey",
+      "key": "a",
+      "at": {
+        "line": 1,
+        "column": 8
+      },
+      "first": {
+        "line": 1,
+        "column": 2
+      }
     }
   },
   {
@@ -48,6 +96,18 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": true
+    },
+    "diagnosis": {
+      "kind": "duplicateKey",
+      "key": "😀",
+      "at": {
+        "line": 1,
+        "column": 8
+      },
+      "first": {
+        "line": 1,
+        "column": 2
+      }
     }
   },
   {
@@ -58,7 +118,8 @@
       "numericKeyReorder": true,
       "depthExceeded": false,
       "syntaxOk": true
-    }
+    },
+    "diagnosis": null
   },
   {
     "name": "数字キーが昇順でない",
@@ -68,7 +129,8 @@
       "numericKeyReorder": true,
       "depthExceeded": false,
       "syntaxOk": true
-    }
+    },
+    "diagnosis": null
   },
   {
     "name": "添字の上限のキー",
@@ -78,7 +140,8 @@
       "numericKeyReorder": true,
       "depthExceeded": false,
       "syntaxOk": true
-    }
+    },
+    "diagnosis": null
   },
   {
     "name": "上限を超える深さ",
@@ -88,6 +151,14 @@
       "numericKeyReorder": false,
       "depthExceeded": true,
       "syntaxOk": true
+    },
+    "diagnosis": {
+      "kind": "depthExceeded",
+      "at": {
+        "line": 1,
+        "column": 1001
+      },
+      "limit": 1000
     }
   },
   {
@@ -98,7 +169,8 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": true
-    }
+    },
+    "diagnosis": null
   },
   {
     "name": "通常の文書",
@@ -108,7 +180,8 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": true
-    }
+    },
+    "diagnosis": null
   },
   {
     "name": "文字列の値の中に同じ字面",
@@ -118,7 +191,8 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": true
-    }
+    },
+    "diagnosis": null
   },
   {
     "name": "別のオブジェクトの同名キー",
@@ -128,7 +202,8 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": true
-    }
+    },
+    "diagnosis": null
   },
   {
     "name": "昇順の数字キー",
@@ -138,7 +213,8 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": true
-    }
+    },
+    "diagnosis": null
   },
   {
     "name": "数字キーの後の名前のキー",
@@ -148,7 +224,8 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": true
-    }
+    },
+    "diagnosis": null
   },
   {
     "name": "先頭に 0 のあるキーは添字でない",
@@ -158,7 +235,8 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": true
-    }
+    },
+    "diagnosis": null
   },
   {
     "name": "添字の上限を超えるキー",
@@ -168,7 +246,8 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": true
-    }
+    },
+    "diagnosis": null
   },
   {
     "name": "負の数のキーは添字でない",
@@ -178,7 +257,8 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": true
-    }
+    },
+    "diagnosis": null
   },
   {
     "name": "数値の字面",
@@ -188,7 +268,8 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": true
-    }
+    },
+    "diagnosis": null
   },
   {
     "name": "スカラー",
@@ -198,7 +279,8 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": true
-    }
+    },
+    "diagnosis": null
   },
   {
     "name": "文字列のスカラー",
@@ -208,7 +290,8 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": true
-    }
+    },
+    "diagnosis": null
   },
   {
     "name": "前後の空白",
@@ -218,7 +301,8 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": true
-    }
+    },
+    "diagnosis": null
   },
   {
     "name": "空の入力",
@@ -228,6 +312,13 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": false
+    },
+    "diagnosis": {
+      "kind": "syntax",
+      "at": {
+        "line": 1,
+        "column": 1
+      }
     }
   },
   {
@@ -238,6 +329,13 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": false
+    },
+    "diagnosis": {
+      "kind": "syntax",
+      "at": {
+        "line": 2,
+        "column": 1
+      }
     }
   },
   {
@@ -248,6 +346,13 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": false
+    },
+    "diagnosis": {
+      "kind": "syntax",
+      "at": {
+        "line": 1,
+        "column": 4
+      }
     }
   },
   {
@@ -258,6 +363,13 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": false
+    },
+    "diagnosis": {
+      "kind": "syntax",
+      "at": {
+        "line": 1,
+        "column": 8
+      }
     }
   },
   {
@@ -268,6 +380,13 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": false
+    },
+    "diagnosis": {
+      "kind": "syntax",
+      "at": {
+        "line": 1,
+        "column": 3
+      }
     }
   },
   {
@@ -278,6 +397,13 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": false
+    },
+    "diagnosis": {
+      "kind": "syntax",
+      "at": {
+        "line": 1,
+        "column": 3
+      }
     }
   },
   {
@@ -288,6 +414,13 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": false
+    },
+    "diagnosis": {
+      "kind": "syntax",
+      "at": {
+        "line": 1,
+        "column": 2
+      }
     }
   },
   {
@@ -298,6 +431,13 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": false
+    },
+    "diagnosis": {
+      "kind": "syntax",
+      "at": {
+        "line": 1,
+        "column": 1
+      }
     }
   },
   {
@@ -308,6 +448,13 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": false
+    },
+    "diagnosis": {
+      "kind": "syntax",
+      "at": {
+        "line": 1,
+        "column": 9
+      }
     }
   },
   {
@@ -318,6 +465,13 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": false
+    },
+    "diagnosis": {
+      "kind": "syntax",
+      "at": {
+        "line": 1,
+        "column": 10
+      }
     }
   },
   {
@@ -328,6 +482,13 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": false
+    },
+    "diagnosis": {
+      "kind": "syntax",
+      "at": {
+        "line": 1,
+        "column": 16
+      }
     }
   },
   {
@@ -338,6 +499,13 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": false
+    },
+    "diagnosis": {
+      "kind": "syntax",
+      "at": {
+        "line": 1,
+        "column": 3
+      }
     }
   },
   {
@@ -348,6 +516,13 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": false
+    },
+    "diagnosis": {
+      "kind": "syntax",
+      "at": {
+        "line": 1,
+        "column": 3
+      }
     }
   },
   {
@@ -358,6 +533,13 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": false
+    },
+    "diagnosis": {
+      "kind": "syntax",
+      "at": {
+        "line": 1,
+        "column": 9
+      }
     }
   },
   {
@@ -368,6 +550,13 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": false
+    },
+    "diagnosis": {
+      "kind": "syntax",
+      "at": {
+        "line": 2,
+        "column": 1
+      }
     }
   },
   {
@@ -378,6 +567,13 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": false
+    },
+    "diagnosis": {
+      "kind": "syntax",
+      "at": {
+        "line": 1,
+        "column": 2
+      }
     }
   },
   {
@@ -388,6 +584,18 @@
       "numericKeyReorder": false,
       "depthExceeded": false,
       "syntaxOk": false
+    },
+    "diagnosis": {
+      "kind": "duplicateKey",
+      "key": "a",
+      "at": {
+        "line": 1,
+        "column": 9
+      },
+      "first": {
+        "line": 1,
+        "column": 3
+      }
     }
   },
   {
@@ -399,6 +607,118 @@
       "reservedKey": true,
       "depthExceeded": false,
       "syntaxOk": true
+    },
+    "diagnosis": {
+      "kind": "reservedKey",
+      "key": "__proto__",
+      "at": {
+        "line": 1,
+        "column": 2
+      }
+    }
+  },
+  {
+    "name": "複数行の重複キー（LF）",
+    "input": "{\n  \"a\": 1,\n  \"a\": 2\n}",
+    "result": {
+      "duplicateKey": true,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": true
+    },
+    "parserRejects": true,
+    "diagnosis": {
+      "kind": "duplicateKey",
+      "key": "a",
+      "at": {
+        "line": 3,
+        "column": 3
+      },
+      "first": {
+        "line": 2,
+        "column": 3
+      }
+    }
+  },
+  {
+    "name": "複数行の重複キー（CRLF）",
+    "input": "{\r\n  \"a\": 1,\r\n  \"a\": 2\r\n}",
+    "result": {
+      "duplicateKey": true,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": true
+    },
+    "parserRejects": true,
+    "diagnosis": {
+      "kind": "duplicateKey",
+      "key": "a",
+      "at": {
+        "line": 3,
+        "column": 3
+      },
+      "first": {
+        "line": 2,
+        "column": 3
+      }
+    }
+  },
+  {
+    "name": "日本語のキーの重複は列を文字で数える",
+    "input": "{\"名前\":1,\"名前\":1}",
+    "result": {
+      "duplicateKey": true,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": true
+    },
+    "diagnosis": {
+      "kind": "duplicateKey",
+      "key": "名前",
+      "at": {
+        "line": 1,
+        "column": 9
+      },
+      "first": {
+        "line": 1,
+        "column": 2
+      }
+    }
+  },
+  {
+    "name": "2 行目の予約のキー",
+    "input": "[\n{\"constructor\":1}]",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": true,
+      "reservedKey": true
+    },
+    "diagnosis": {
+      "kind": "reservedKey",
+      "key": "constructor",
+      "at": {
+        "line": 2,
+        "column": 2
+      }
+    }
+  },
+  {
+    "name": "殻の試験の壊れた文書",
+    "input": "{\"a\":1, /* c */ \"b\":",
+    "result": {
+      "duplicateKey": false,
+      "numericKeyReorder": false,
+      "depthExceeded": false,
+      "syntaxOk": false
+    },
+    "diagnosis": {
+      "kind": "syntax",
+      "at": {
+        "line": 1,
+        "column": 9
+      }
     }
   }
 ]

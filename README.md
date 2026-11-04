@@ -9,8 +9,15 @@
 ![JsonGridder in the dark theme](docs/images/dark-en.png)
 
 ## Features
-- **Table, tree, and text views** of the same document. Arrays of objects open as a table, and you can pick which inner array to show as the table.
-- **Edit like a spreadsheet**: click a cell and type, press Enter to commit, Ctrl+Z / Ctrl+Y to undo and redo.
+- **Tree and Table views** of the same document. Files open in the Tree view; switch with the **Tree** and **Table** buttons at the right of the menu bar.
+- **Table targets in the left pane**: the arrays in the document that can be shown as a table are listed with their item counts. Click one to show it as the table. **Options > Hide Table Targets in Tree View** hides the pane while the Tree view is shown.
+- **Two-level column headers**: columns of nested objects such as `address.city` are grouped under `address`, with `city` in the second row.
+- **Command row** under the menu bar: Undo, Redo, Search / Replace, Sort, Filter / Transform, Expand, and Collapse.
+- **Edit like a spreadsheet**: click a cell and type, press Enter to commit, Ctrl+Z / Ctrl+Y to undo and redo. The **Edit** menu has Undo, Redo, Cut, Copy, Paste, Find / Replace, and **Open in Text Editor**, which opens the file in the Windows default app for `.txt` files.
+- **Documents that the table and tree cannot hold** (invalid JSON, duplicate keys, the keys `__proto__` or `constructor`, or nesting that is too deep) open as plain text with a warning band that gives the reason and the line. When you fix the text, the Tree and Table buttons become available again.
+- **Files changed by another app are reloaded** when you come back to the window. If you have unsaved changes, the app asks whether to reload or keep your edits.
+- **Status row** at the bottom: the character encoding, the line endings, the number of rows (Table view), and whether the document is saved.
+- **Translation (off by default)**: right-click a column header, a table cell, or a text value in the tree, point to **Translate to English**, and choose **Paid** or **Free** in its submenu (日本語に翻訳 > 有料 / 無料 in the Japanese UI). You choose for each translation: the paid key for confidential documents, the free-tier key for documents Google may use. The translations appear in a side panel next to the originals, where you can copy them. Your JSON is not changed unless you choose **Add translations as a new column**, which one Undo takes back. See [Translation](#translation).
 - **Search and replace** (Ctrl+F, Ctrl+H), one match at a time or all at once. One Ctrl+Z undoes a whole Replace All.
 - **Sort, filter, and transform** with queries.
 - **Your file stays as it was where you did not edit it**: the indentation, line endings, and number formats such as `1.0` or long IDs are kept. Saving is atomic, and the app asks before overwriting a file that changed on disk.
@@ -18,7 +25,7 @@
 - **Dark and light themes**, and **English and Japanese** (Options menu). The app starts in English; choose Japanese in the Options menu.
 - **Wrap at Window Edge** (Options menu): long text in a table cell wraps onto more lines within the column width, so you can read it without scrolling sideways. The last column reaches the right edge of the window. Drag the border between column headers to change a column's width. This changes only the display, not your file.
 - **Portable**: one EXE, no installer. Settings are stored next to the EXE.
-- **No network access** by the app itself.
+- **The app itself makes no network access unless you enable translation.** With translation off (the default), JsonGridder sends nothing. The Microsoft Edge WebView2 Runtime that draws the window is a Windows component and may contact Microsoft services on its own.
 
 ![JsonGridder in the light theme](docs/images/light-en.png)
 
@@ -61,9 +68,32 @@ The app does not change your file associations. To choose it yourself, right-cli
 
 `wrapLines` (optional, default `false`) is **Options > Wrap at Window Edge**.
 
+`hideTargetsInTree` (optional, default `false`) is **Options > Hide Table Targets in Tree View**. When it is `true`, the left pane that lists the arrays you can show as a table is hidden while the Tree view is shown. The pane still appears in the Table view.
+
+`translationEnabled` (optional, default `false`), `translationService` (`"gemini"`), `translationModel` (default `"gemini-3.1-flash-lite"`), `translationFallback` (optional, default `true`), `translationConfirm` (optional, default `true`), and `translationMachineNotice` (optional, default `true`) are **Options > Translation Settings...**. Values that are not allowed fall back to the defaults. The API key is never written to this file. A `translationTier` written by an earlier version is read but not used (you choose free tier or paid for each translation).
+
+## Translation
+Translation is off until you turn it on. While it is off, nothing is sent anywhere.
+
+1. Get an API key for the Gemini API from Google AI Studio.
+2. Choose **Options > Translation Settings...**, turn on **Enable translation**, paste a key, and choose **Save Key** and **Save**. There are two key fields: put a key from a project without billing in **Free-tier key (project without billing)**, and a key from a project with billing enabled in **Paid key (project with billing)**. One of them is enough.
+3. Right-click a column header, a table cell, or a text value in the tree, point to **Translate to English**, and choose **Paid** or **Free** in its submenu (in the Japanese UI, 日本語に翻訳 > 有料 / 無料). The submenu lists only the keys you saved, even if there is just one; Paid and Free are shown in different text colors. With no key saved, **Translate to English** has no submenu and opens Translation Settings. From the keyboard, Right Arrow or Enter opens the submenu, and Left Arrow or Esc closes it. The target language is the UI language.
+4. Before anything is sent, the app shows how many values and characters will be sent, to which service and model, and whether the free-tier or the paid key is used. Only text values are sent: numbers, true/false, null, and empty strings are not. **Cancel** is the default button. If you check **Don't show again** and choose **Send**, later translations are sent without this confirmation. Turn it back on with **Confirm before sending** in **Options > Translation Settings...**.
+
+The results appear in the side panel with the originals. You can copy one translation, all translations, or the originals and translations as tab-separated lines. The panel also says whether the free-tier or the paid key was used. If translation stops partway, the rows translated so far are kept, and **Translate the rest** sends only the remaining ones, with the same key. The note at the top of the panel that translations are machine guesses has a **Don't show again** button; turn the note back on with **Show the note in the result panel** in **Options > Translation Settings...**. When you translated a column, **Add translations as a new column** adds a new key next to the original (for example `subject_en`, or `subject_ja` when translating to Japanese) in one edit that one Undo takes back. It never overwrites an existing key or changes the original values.
+
+**When a model is busy.** If the chosen model stays busy or keeps hitting its rate limit after a few retries, and **Switch to another model when the model is busy** is on (the default) in **Options > Translation Settings...**, the rest is sent with the next model in the list, for that translation only. The saved model does not change, and the panel shows which model produced the translations (for example "Model used: gemini-3.5-flash-lite (because gemini-3.1-flash-lite was busy)"). The app does not switch models for a wrong key, a refused permission, a safety refusal, or an unreadable response. When translation stops, the panel says what went wrong and what to do, with Google's own message under it.
+
+**Free tier or paid API.** On the Gemini API free tier, Google uses the text you send and the translations to improve its products, and people may read them, according to Google's terms. Translate values that contain confidential or personal information with the paid key. On the paid API (a key from a Google Cloud project with billing enabled), they are not used to improve Google's products. Whether a request counts as free tier or paid is decided by Google from whether billing is enabled for the key's project, not by anything this app sends. That is why the app keeps two keys and sends with the one you chose in the right-click menu. If you put a key from a project with billing in the free-tier field, those translations are billed as paid. In the EEA, Switzerland, and the UK, only the paid API may be used. See Google's [Gemini API terms](https://ai.google.dev/gemini-api/terms) and [pricing](https://ai.google.dev/gemini-api/docs/pricing).
+
+**Where the keys are kept.** The API keys are stored in the Windows Credential Manager as generic credentials, not in the settings file: `JsonGridder/translation/gemini/free` for the free-tier key and `JsonGridder/translation/gemini/paid` for the paid key. They are not shown on screen after they are saved. A key saved by an earlier version (`JsonGridder/translation/gemini`) appears in Translation Settings as **Earlier key (choose where to move it)**. It is not assigned to either tier, and not used for translation, until you choose **Move to Free-Tier Key** or **Move to Paid Key**. Moving writes the key to the new place, reads it back, and only then deletes the earlier key. A key that is already saved in the new place is never overwritten.
+
+**What is sent, and from where.** Only when translation is enabled and you confirm (or have turned the confirmation off), the app sends the text values to `generativelanguage.googleapis.com` over HTTPS. The request is made by the app itself (its Rust side), not by the window's web content, which is not allowed to connect to the internet.
+
 ## Uninstall
 1. Delete `JsonGridder.exe` and `JsonGridder.settings.json`.
 2. Delete the WebView2 working folder `%LOCALAPPDATA%\io.github.vtriot.jsongridder`.
+3. If you saved an API key for translation, delete it with **Delete Key** in **Options > Translation Settings...** before you delete the EXE, or delete `JsonGridder/translation/gemini/free`, `JsonGridder/translation/gemini/paid`, and the earlier `JsonGridder/translation/gemini` under **Windows Credentials** in the Windows Credential Manager.
 
 ## Known limitations
 - If the app or the PC crashes, or Windows shuts down or signs out, unsaved edits are lost. There is no automatic recovery.
@@ -72,7 +102,8 @@ The app does not change your file associations. To choose it yourself, right-cli
 - Saving breaks hard links.
 - Sorting by a column header sorts the data itself, and it does not sort numbers numerically.
 - Transform keeps numbers exactly as written, and stops with a reason instead of rounding: for example, calculations with numbers too large to hold exactly, or queries whose result keys collide. Decimal calculations use standard floating point (`0.1 + 0.2` gives `0.30000000000000004`).
-- Documents with duplicate keys, or with the keys `__proto__` or `constructor`, can be opened only in the text view.
+- Documents with duplicate keys, or with the keys `__proto__` or `constructor`, open only as plain text, until you fix them.
+- Translations are machine output and can be wrong. Check them against the originals before you use them.
 - Typing `[` or `{` in a cell starts typing text. To insert an array or object, use the menu.
 - WebView2 may send diagnostic data to Microsoft according to its own settings. The app cannot turn this off.
 

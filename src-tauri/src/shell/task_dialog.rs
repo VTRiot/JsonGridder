@@ -3,7 +3,7 @@
 //! 既定のボタンを選べ、Esc と×を決まった答えへ写せる。別のスレッドで動かし、親に主窓を渡す。
 //! JS の待ちを持たないので、レンダラが固まっていても出る。
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// ボタンの ID の始まり。`IDCANCEL` などの標準の ID と重ならない値。
 const FIRST_BUTTON_ID: i32 = 100;
@@ -27,6 +27,26 @@ pub struct AskRequest {
     pub cancel: usize,
 }
 
+/// ボタンの下にチェックボックス（TaskDialog の verification）を 1 つ添えた確認。
+/// 例: 翻訳の確かめの「今後表示しない」。
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CheckedAskRequest {
+    #[serde(flatten)]
+    pub ask: AskRequest,
+    /// チェックボックスの文言。最初は外してある。
+    pub check: String,
+}
+
+/// 押されたボタンの添字と、閉じたときにチェックボックスが入っていたか。
+/// 入っていたかは押したボタンに関わらずそのまま返す（どのボタンで採るかは画面が決める）。
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CheckedAnswer {
+    pub button: usize,
+    pub checked: bool,
+}
+
 /// 押されたボタンの ID を添字へ写す。ボタン以外の答えは `cancel`。
 fn chosen_index(button_id: i32, button_count: usize, cancel: usize) -> usize {
     usize::try_from(button_id - FIRST_BUTTON_ID)
@@ -35,13 +55,33 @@ fn chosen_index(button_id: i32, button_count: usize, cancel: usize) -> usize {
         .unwrap_or(cancel)
 }
 
+/// TaskDialog の答えを写す。出せなかった（`None`）なら取り消しで、チェックは入っていない扱い。
+fn checked_answer(shown: Option<(i32, bool)>, button_count: usize, cancel: usize) -> CheckedAnswer {
+    match shown {
+        Some((button_id, checked)) => CheckedAnswer {
+            button: chosen_index(button_id, button_count, cancel),
+            checked,
+        },
+        None => CheckedAnswer {
+            button: cancel,
+            checked: false,
+        },
+    }
+}
+
 /// 主窓を親にして出し、押されたボタンの添字を返す。出せなければ `cancel` を返す。
 /// 確認を得られないまま進めないためである。
 pub fn show(parent: isize, request: &AskRequest) -> usize {
-    match imp::show(parent, request) {
-        Some(button_id) => chosen_index(button_id, request.buttons.len(), request.cancel),
+    match imp::show(parent, request, None) {
+        Some((button_id, _)) => chosen_index(button_id, request.buttons.len(), request.cancel),
         None => request.cancel,
     }
+}
+
+/// `show` にチェックボックスを添えた物。Esc と×は `cancel`、既定のボタンは `default` のまま。
+pub fn show_checked(parent: isize, request: &CheckedAskRequest) -> CheckedAnswer {
+    let shown = imp::show(parent, &request.ask, Some(&request.check));
+    checked_answer(shown, request.ask.buttons.len(), request.ask.cancel)
 }
 
 #[cfg(windows)]
@@ -93,11 +133,13 @@ mod imp {
         }
     }
 
-    pub fn show(parent: isize, request: &AskRequest) -> Option<i32> {
+    /// 押されたボタンの ID と、チェックボックスが入っていたか（`check` が無ければ false）。
+    pub fn show(parent: isize, request: &AskRequest, check: Option<&str>) -> Option<(i32, bool)> {
         let task_dialog = task_dialog_indirect()?;
 
         let title = wide(&request.title);
         let body = wide(&request.body);
+        let check = check.map(wide);
         let labels: Vec<Vec<u16>> = request.buttons.iter().map(|label| wide(label)).collect();
         let buttons: Vec<TASKDIALOG_BUTTON> = labels
             .iter()
@@ -120,10 +162,16 @@ mod imp {
             config.cButtons = buttons.len() as u32;
             config.pButtons = buttons.as_ptr();
             config.nDefaultButton = FIRST_BUTTON_ID + request.default as i32;
+            // チェックボックスは最初は外す（TDF_VERIFICATION_FLAG_CHECKED を立てない）
+            if let Some(check) = &check {
+                config.pszVerificationText = check.as_ptr();
+            }
 
             let mut pressed = 0;
-            let result = task_dialog(&config, &mut pressed, null_mut(), null_mut());
-            (result >= 0).then_some(pressed)
+            let mut verified: BOOL = 0;
+            let verified_out = if check.is_some() { &mut verified as *mut BOOL } else { null_mut() };
+            let result = task_dialog(&config, &mut pressed, null_mut(), verified_out);
+            (result >= 0).then_some((pressed, verified != 0))
         }
     }
 }
@@ -132,7 +180,7 @@ mod imp {
 mod imp {
     use super::AskRequest;
 
-    pub fn show(_parent: isize, _request: &AskRequest) -> Option<i32> {
+    pub fn show(_parent: isize, _request: &AskRequest, _check: Option<&str>) -> Option<(i32, bool)> {
         None
     }
 }
@@ -173,5 +221,48 @@ mod tests {
         .expect("request");
         assert_eq!(request.level, Level::Warning);
         assert_eq!(request.default, 1);
+    }
+
+    #[test]
+    fn the_checked_request_reads_the_shape_the_screen_sends() {
+        let request: CheckedAskRequest = serde_json::from_str(
+            r#"{"title":"t","body":"b","level":"info","buttons":["a","b"],"default":1,"cancel":1,"check":"c"}"#,
+        )
+        .expect("request");
+        assert_eq!(request.ask.buttons, ["a", "b"]);
+        assert_eq!(request.ask.default, 1);
+        assert_eq!(request.ask.cancel, 1);
+        assert_eq!(request.check, "c");
+        // 文言の無い確認は受けない（チェックボックスの無い確かめを黙って出さない）
+        assert!(serde_json::from_str::<CheckedAskRequest>(
+            r#"{"title":"t","body":"b","level":"info","buttons":["a"],"default":0,"cancel":0}"#
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn the_checked_answer_keeps_the_button_and_the_box() {
+        const TWO_BUTTONS: usize = 2;
+        const CANCEL_OF_TWO: usize = 1;
+        assert_eq!(
+            checked_answer(Some((FIRST_BUTTON_ID, true)), TWO_BUTTONS, CANCEL_OF_TWO),
+            CheckedAnswer { button: 0, checked: true }
+        );
+        assert_eq!(
+            checked_answer(Some((FIRST_BUTTON_ID, false)), TWO_BUTTONS, CANCEL_OF_TWO),
+            CheckedAnswer { button: 0, checked: false }
+        );
+        // Esc と×は取り消し。入っていたかはそのまま返す（採るかは画面が決める）
+        assert_eq!(
+            checked_answer(Some((IDCANCEL, true)), TWO_BUTTONS, CANCEL_OF_TWO),
+            CheckedAnswer { button: CANCEL_OF_TWO, checked: true }
+        );
+        // 出せなければ取り消しで、入っていない扱い
+        assert_eq!(
+            checked_answer(None, TWO_BUTTONS, CANCEL_OF_TWO),
+            CheckedAnswer { button: CANCEL_OF_TWO, checked: false }
+        );
+        let serialized = serde_json::to_string(&CheckedAnswer { button: 0, checked: true }).expect("json");
+        assert_eq!(serialized, r#"{"button":0,"checked":true}"#);
     }
 }

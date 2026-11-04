@@ -1,7 +1,7 @@
 {
   "productName": "JsonGridder",
   "mainBinaryName": "JsonGridder",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "identifier": "io.github.vtriot.jsongridder",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -29,7 +29,7 @@
         "default-src": "'none'",
         "script-src": "'self'",
         "style-src": "'self' 'unsafe-inline'",
-        "img-src": "'self' data:",
+        "img-src": "'self'",
         "font-src": "'self'",
         "connect-src": "ipc: http://ipc.localhost",
         "object-src": "'none'",

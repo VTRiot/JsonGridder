@@ -3,11 +3,12 @@
 //! 基準のバイト列はここに置き、画面は `revision` で指す。100 MB の複製を画面との間で
 //! 往復させないためである。基準は保存の成功のときだけ、一度に入れ替える。
 
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{ErrorKind, Read};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::time::SystemTime;
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -37,6 +38,40 @@ struct Session {
     bom: bool,
     round_trip_ok: bool,
     revision: u64,
+    /// ディスクの中身が `sha256` と同じと確かめたときのサイズと更新時刻。同じなら外の変更の見張りは読まない。
+    /// 開いた直後と書いた直後は無い（最初の見張りが全部を読んで確かめる）。
+    verified_stamp: Option<Stamp>,
+}
+
+/// ファイルのサイズと更新時刻。外の変更の見張りで、全部を読まずに済ませる判断にだけ使う。
+/// 保存の安全は保存直前の照合（`check_unchanged_on_disk`）が持つ。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Stamp {
+    len: u64,
+    modified: SystemTime,
+}
+
+fn stamp_of(path: &Path) -> std::io::Result<Stamp> {
+    let metadata = fs::metadata(path)?;
+    Ok(Stamp {
+        len: metadata.len(),
+        modified: metadata.modified()?,
+    })
+}
+
+/// 開いているファイルのディスクの状態（窓に戻ったときの外の変更の見張り）。
+#[derive(Debug, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all_fields = "camelCase")]
+pub enum DiskStatus {
+    /// 基準と同じ。
+    Same,
+    /// 基準と違う。`sha256` は今のディスクの中身。同じ変更で 2 度聞かないために画面が覚える。
+    Changed { sha256: String },
+    Missing,
+    /// 読めない（ほかのアプリが使っている等）。次の見張りでもう一度見る。
+    Unreadable { code: u32 },
+    /// 文書が無いか、`revision` が今の基準でない（保存や開く処理の後）。
+    Stale,
 }
 
 #[derive(Default)]
@@ -234,6 +269,7 @@ impl FileState {
             bom: opened.bom,
             round_trip_ok: opened.round_trip_ok,
             revision,
+            verified_stamp: None,
         });
         (reply, opened.text.into_bytes())
     }
@@ -319,6 +355,7 @@ impl FileState {
                     // 書いた直後に読み直して一致を確かめたので、もう往復できる
                     round_trip_ok: true,
                     revision,
+                    verified_stamp: None,
                 });
                 reply
             }
@@ -347,6 +384,62 @@ impl FileState {
             }
             _ => self.keep_baseline_on_disk(&mut slots, request.confirm, replacer),
         }
+    }
+
+    /// 今の基準のパス（画面に出す形）。`revision` が今の基準でなければ `None`。
+    /// 外のアプリへ渡すパスは画面から受けず、ここから取る。
+    pub fn current_display_path(&self, revision: u64) -> Option<String> {
+        let slots = self.lock();
+        slots
+            .current
+            .as_ref()
+            .filter(|session| revision != NO_DOCUMENT && session.revision == revision)
+            .map(|session| session.path.display().to_owned())
+    }
+
+    /// ディスクが基準と同じかを見る（窓に戻ったときの見張り）。聞くかどうかの判断にだけ使い、
+    /// 保存の安全は保存直前の照合が持つ。前に確かめたときとサイズと更新時刻が同じなら読まない。
+    /// 読む間はロックを持たない（大きなファイルで保存を待たせない）。
+    pub fn disk_status(&self, revision: u64) -> DiskStatus {
+        let (path, expected, verified) = {
+            let slots = self.lock();
+            match slots
+                .current
+                .as_ref()
+                .filter(|session| revision != NO_DOCUMENT && session.revision == revision)
+            {
+                Some(session) => (session.path.clone(), session.sha256, session.verified_stamp),
+                None => return DiskStatus::Stale,
+            }
+        };
+        let before = match stamp_of(path.real()) {
+            Ok(stamp) => stamp,
+            Err(error) => return unreadable(&error),
+        };
+        if verified == Some(before) {
+            return DiskStatus::Same;
+        }
+        let actual = match hash_file(path.real()) {
+            Ok(actual) => actual,
+            Err(error) => return unreadable(&error),
+        };
+        if actual != expected {
+            return DiskStatus::Changed {
+                sha256: to_hex(&actual),
+            };
+        }
+        // 読む間に変わっていなければ、このサイズと時刻を覚える。間に保存や開く処理があれば覚えない
+        if stamp_of(path.real()).is_ok_and(|after| after == before) {
+            let mut slots = self.lock();
+            if let Some(session) = slots
+                .current
+                .as_mut()
+                .filter(|session| session.revision == revision)
+            {
+                session.verified_stamp = Some(before);
+            }
+        }
+        DiskStatus::Same
     }
 
     /// 開いているパスへ基準を保つ。ディスクが基準と同じなら 1 バイトも書かない。消えたか外部で
@@ -383,6 +476,8 @@ impl FileState {
             Ok(written) => {
                 session.path = target.clone();
                 session.revision = self.next_revision();
+                // 書いたファイルの時刻は変わる。次の見張りは全部を読んで確かめ直す
+                session.verified_stamp = None;
                 saved(session.revision, target, &session.sha256, written, None)
             }
             Err(failure) => failure_reply(failure),
@@ -431,6 +526,16 @@ fn check_unchanged_on_disk(
         Err(error) => Err(WriteFailure::Locked {
             code: os_code(&error),
         }),
+    }
+}
+
+fn unreadable(error: &std::io::Error) -> DiskStatus {
+    if error.kind() == ErrorKind::NotFound {
+        DiskStatus::Missing
+    } else {
+        DiskStatus::Unreadable {
+            code: os_code(error),
+        }
     }
 }
 

@@ -1,0 +1,253 @@
+/* 翻訳の結果の小窓（右）。色は theme.css の役割の変数だけを使う（ライトとダークは変数が替える）。 */
+.app-translate-panel {
+  /* 見た目で決めた幅。境目のつまみで変えられる（表示だけの値で保存しない） */
+  --app-translate-width: 360px;
+  --app-translate-min-width: 220px;
+  --app-translate-max-width: 70vw;
+
+  position: relative;
+  flex: none;
+  display: flex;
+  width: var(--app-translate-width);
+  min-width: var(--app-translate-min-width);
+  max-width: var(--app-translate-max-width);
+  min-height: 0;
+  background: var(--app-surface);
+  color: var(--app-text);
+  border-left: 1px solid var(--app-border);
+  font: 13px var(--jse-font-family);
+}
+
+.app-translate-panel[hidden] {
+  display: none;
+}
+
+.app-translate-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 1;
+}
+
+.app-translate-inner {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  min-height: 0;
+  padding: 8px 10px;
+}
+
+.app-translate-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-translate-title {
+  flex: 1;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.app-translate-source {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--app-text-muted);
+}
+
+/* 機械の推測の注記は読み落とさないように、警告の帯と同じ地と縁で出す（文字と地は 4.5 以上を contrast.mjs が測る）。 */
+.app-translate-machine {
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--app-banner-border);
+  border-radius: 4px;
+  background: var(--app-banner-bg);
+  color: var(--app-banner-text);
+  line-height: 1.5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 8px;
+}
+
+/* 注意書きの「今後表示しない」は小さく、文の後ろに置く。 */
+.app-translate-machine-hide {
+  font-size: 12px;
+  padding: 1px 8px;
+}
+
+/* どの枠のキーで送ったか（F5）。 */
+.app-translate-tier {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--app-text);
+  font-weight: 600;
+}
+
+.app-translate-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-translate-count {
+  flex: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.app-translate-message {
+  margin: 0;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.app-translate-message[data-kind='error'] {
+  color: var(--app-error);
+}
+
+/* サービスの言った理由（Google の文）と、使ったモデル。理由の文の下に控えめに出す */
+.app-translate-detail,
+.app-translate-models {
+  margin: 0;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.app-translate-model {
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.app-translate-rows {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.app-translate-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 2px;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.app-translate-row-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-translate-place {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.app-translate-status {
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.app-translate-row[data-status='done'] .app-translate-status {
+  color: var(--app-success);
+}
+
+.app-translate-row[data-status='malformed'] .app-translate-status,
+.app-translate-row[data-status='blocked'] .app-translate-status,
+.app-translate-row[data-status='tooLong'] .app-translate-status {
+  color: var(--app-error);
+}
+
+.app-translate-caption {
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.app-translate-original,
+.app-translate-translation {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+
+.app-translate-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.app-translate-copied {
+  color: var(--app-text-muted);
+}
+
+.app-translate-copied[data-kind='error'] {
+  color: var(--app-error);
+}
+
+.app-translate-button {
+  padding: 3px 10px;
+  border: 1px solid var(--app-border);
+  border-radius: 3px;
+  background: var(--app-selection-inactive);
+  color: var(--app-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.app-translate-button:hover:not(:disabled) {
+  background: var(--app-selection);
+}
+
+.app-translate-button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.app-translate-primary {
+  border-color: var(--app-accent);
+  background: var(--app-accent);
+  color: var(--app-accent-text);
+}
+
+.app-translate-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--app-accent) 82%, white);
+}
+
+.app-translate-copy-one {
+  padding: 1px 8px;
+  font-size: 12px;
+}
+
+.app-translate-panel :focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 1px;
+}
+
+[hidden].app-translate-button,
+[hidden].app-translate-machine,
+[hidden].app-translate-tier,
+[hidden].app-translate-message,
+[hidden].app-translate-detail,
+[hidden].app-translate-models,
+[hidden].app-translate-model,
+[hidden].app-translate-translation {
+  display: none;
+}

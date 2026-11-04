@@ -19,7 +19,10 @@ const MESSAGE_PAIRS = ['error', 'warning', 'success', 'info'].map((kind) => [
   `--jse-message-${kind}-color`,
   `--jse-message-${kind}-background`
 ])
-const GROUND_VARS = ['--app-bg', '--app-surface', '--app-header', '--app-selection', '--app-selection-inactive', '--app-hover']
+const GROUND_VARS = ['--app-bg', '--app-surface', '--app-header', '--app-selection', '--app-selection-inactive', '--app-hover', '--app-row-odd']
+// ライトの地と面の明るさの上限（step9_008）。白が目に刺さらないよう、CIE L* でこれを超える面を作らない。
+const LIGHT_GROUND_LSTAR_MAX = 95
+const LIGHT_GROUND_VARS = [...GROUND_VARS, '--app-frame', '--app-border']
 const EXPECTED_ACCENT = '#f29ab9'
 const PROBE_ACCENT = '#12ab34'
 const MODES = ['table', 'tree', 'text']
@@ -153,9 +156,15 @@ export async function testDark(browser, base, h) {
   )
   console.log('  役割の表: ' + rows.map((r) => `${r[0]}@${r[2]}=${r[3].toFixed(2)}`).join(' '))
 
-  // 条件 3: 画面の文字を走査（表、ツリー、テキスト）
+  // 条件 3: 画面の文字を走査（表、ツリー、テキスト）。主の画面のテキストの表示は、
+  // テキストでしか開けない文書を開いたときだけ出る（Step10 D3、D6）ので、不正な文書を開いて撮る
   for (const mode of MODES) {
-    await page.evaluate((value) => window.fixture.setMode(value), mode)
+    if (mode === 'text') {
+      await page.evaluate(() => window.fixture.nextOpen({ textOnly: true }))
+      await open('/broken.json')
+    } else {
+      await h.switchTo(page, mode)
+    }
     await page.waitForSelector(`.jse-${mode}-mode, .cm-editor`, { timeout: 5000 })
     await page.waitForTimeout(300)
     const result = await scanPage(page, '.jse-main')
@@ -164,10 +173,17 @@ export async function testDark(browser, base, h) {
       result.count > 0 && result.bad.length === 0,
       result.bad.slice(0, 4).join(' | ')
     )
+    const bar = await scanPage(page, '.app-menubar')
+    h.record(
+      `${name}: ${mode} のメニューの行（切り替えを含む）の文字 ${bar.count} 件が 4.5 以上`,
+      bar.count > 0 && bar.bad.length === 0,
+      bar.bad.slice(0, 4).join(' | ')
+    )
   }
+  await open('/first.json')
 
   // 条件 3: 右クリックのメニューとモーダル
-  await page.evaluate(() => window.fixture.setMode('tree'))
+  await h.switchTo(page, 'tree')
   await page.waitForSelector('.jse-tree-mode', { timeout: 5000 })
   await page.locator('.jse-tree-mode .jse-key').first().click({ button: 'right' })
   await page.waitForSelector('div.jse-contextmenu', { timeout: 5000 })
@@ -178,7 +194,7 @@ export async function testDark(browser, base, h) {
     menu.bad.slice(0, 4).join(' | ')
   )
   await page.keyboard.press('Escape')
-  await page.locator('.jse-menu .jse-sort').first().click()
+  await page.locator('.app-command-button[data-command="sort"]').first().click()
   await page.waitForSelector('.jse-modal', { timeout: 5000 })
   const modal = await scanPage(page, '.jse-modal')
   h.record(
@@ -320,11 +336,26 @@ export async function testDark(browser, base, h) {
       const v = (n) => { const p = document.createElement('i'); p.style.color = 'var(' + n + ')'; document.body.append(p); const c = getComputedStyle(p).color; p.remove(); return c }
       return [v('--app-accent'), v('--app-surface')]
     })
-    h.record(`${lname}: ワンポイントが #b9a3e3、面が #eeeaf5`, lcolors.join() === 'rgb(185, 163, 227),rgb(238, 234, 245)', lcolors.join())
+    h.record(`${lname}: ワンポイントが #b9a3e3、面が #e0dbea`, lcolors.join() === 'rgb(185, 163, 227),rgb(224, 219, 234)', lcolors.join())
+    const lstars = await page.evaluate(`(() => {
+      const api = ${PAGE_LIB}
+      const lin = (v) => { const s = v / 255; return s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4) }
+      const lstar = ({ r, g, b }) => {
+        const y = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+        return y > 216 / 24389 ? 116 * Math.cbrt(y) - 16 : (24389 / 27) * y
+      }
+      return ${JSON.stringify(LIGHT_GROUND_VARS)}.map((name) => [name, lstar(api.resolve(name))])
+    })()`)
+    const lbright = lstars.filter(([, value]) => value > LIGHT_GROUND_LSTAR_MAX)
+    h.record(
+      `${lname}: 地と面 ${lstars.length} 色が L* ${LIGHT_GROUND_LSTAR_MAX} 以下（最大 ${Math.max(...lstars.map((r) => r[1])).toFixed(1)}）`,
+      lbright.length === 0,
+      lbright.map(([n, v]) => `${n} ${v.toFixed(1)}`).join(', ')
+    )
   }
   h.record(
-    `${name}: ライトの地が薄い藤色の白（#f7f5fb）`,
-    (await page.evaluate(() => getComputedStyle(document.body).backgroundColor)) === 'rgb(247, 245, 251)'
+    `${name}: ライトの地が少し濁した藤色（#eae6f1）`,
+    (await page.evaluate(() => getComputedStyle(document.body).backgroundColor)) === 'rgb(234, 230, 241)'
   )
   await page.click('.app-menubar-button:has-text("オプション")')
   await page.click('.app-menu-item:has-text("ダーク")')

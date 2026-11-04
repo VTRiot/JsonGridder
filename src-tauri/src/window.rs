@@ -270,7 +270,7 @@ fn allow_navigation(guarded: bool, startup_pending: bool) -> bool {
 /// ダークの地の色。src/shell/theme.css の `--app-bg`（ダーク）と同じ値にする。
 const DARK_BACKGROUND: Color = Color(0x18, 0x15, 0x28, 0xff);
 /// ライトの地の色。src/shell/theme.css の `--app-bg`（ライト）と同じ値にする。
-const LIGHT_BACKGROUND: Color = Color(0xf7, 0xf5, 0xfb, 0xff);
+const LIGHT_BACKGROUND: Color = Color(0xea, 0xe6, 0xf1, 0xff);
 
 /// タイトルバーの色（地、文字、枠）。src/shell/theme.css の `--app-frame`、`--app-text`、`--app-border` と同じ値にする。
 /// 枠はダークでは窓枠の色（`--app-frame`）に溶かし、ライトでは罫線の色にする。
@@ -287,9 +287,9 @@ const DARK_TITLE_BAR: TitleBarColors = TitleBarColors {
     border: (0x14, 0x12, 0x1f),
 };
 const LIGHT_TITLE_BAR: TitleBarColors = TitleBarColors {
-    caption: (0xee, 0xea, 0xf5),
+    caption: (0xe0, 0xdb, 0xea),
     text: (0x2b, 0x25, 0x40),
-    border: (0xd9, 0xd2, 0xe8),
+    border: (0xc6, 0xbd, 0xd8),
 };
 
 fn title_bar_of(theme: &str) -> TitleBarColors {
@@ -446,7 +446,7 @@ mod tests {
     #[test]
     fn the_light_title_bar_matches_the_light_surface_with_dark_text() {
         let colors = title_bar_of("light");
-        assert_eq!(colorref(colors.caption), 0x00f5_eaee);
+        assert_eq!(colorref(colors.caption), 0x00ea_dbe0);
         assert_eq!(colorref(colors.text), 0x0040_252b);
         assert_ne!(title_bar_of("dark"), colors);
     }

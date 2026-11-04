@@ -17,6 +17,7 @@ use crate::file::replace::{
     ERROR_ALREADY_EXISTS, ERROR_FILE_EXISTS, ERROR_FILE_NOT_FOUND, Replacer, SystemReplacer,
 };
 use crate::file::save::{WriteFailure, write_atomically};
+use crate::translate;
 
 pub const SETTINGS_FILE: &str = "JsonGridder.settings.json";
 pub const RECENT_LIMIT: usize = 10;
@@ -35,6 +36,20 @@ const KEY_SPLASH_MS: &str = "splashMs";
 const KEY_SPLASH_CEREMONY: &str = "splashCeremony";
 const KEY_SPLASH_CEREMONY_UNLOCKED: &str = "splashCeremonyUnlocked";
 const KEY_WRAP_LINES: &str = "wrapLines";
+const KEY_HIDE_TARGETS_IN_TREE: &str = "hideTargetsInTree";
+const KEY_TRANSLATION_ENABLED: &str = "translationEnabled";
+const KEY_TRANSLATION_SERVICE: &str = "translationService";
+const KEY_TRANSLATION_TIER: &str = "translationTier";
+const KEY_TRANSLATION_MODEL: &str = "translationModel";
+const KEY_TRANSLATION_FALLBACK: &str = "translationFallback";
+/// 混雑のときに別のモデルへ切り替えるかの既定（既定は入）。
+pub const DEFAULT_TRANSLATION_FALLBACK: bool = true;
+const KEY_TRANSLATION_CONFIRM: &str = "translationConfirm";
+/// 送る前に確かめるかの既定（F4。確かめを出す）。
+pub const DEFAULT_TRANSLATION_CONFIRM: bool = true;
+const KEY_TRANSLATION_MACHINE_NOTICE: &str = "translationMachineNotice";
+/// 結果の小窓に「訳は機械の推測」の注意書きを出すかの既定（F5。出す）。
+pub const DEFAULT_TRANSLATION_MACHINE_NOTICE: bool = true;
 
 /// 起動画面の最低表示時間の既定（ミリ秒）。設定の `splashMs` で替え、0 なら起動画面を出さない。
 pub const DEFAULT_SPLASH_MS: u64 = 1500;
@@ -75,6 +90,48 @@ pub enum Change {
     SplashCeremonyUnlocked(bool),
     /// 右端で折り返す。表示だけの設定で、文書には触らない。
     WrapLines(bool),
+    /// ツリー表示のときは左ペインを出さない。表示だけの設定で、文書には触らない。
+    HideTargetsInTree(bool),
+    /// 翻訳の設定のキー（有効、サービス、モデル、切り替え、送る前の確かめ、小窓の注意書き）。
+    /// API キーはここに無い（資格情報マネージャーに置く）。`translationTier` は書かない（F5 で使わなくなった）。
+    Translation(Translation),
+    /// 送る前に確かめるかだけ（確かめの「今後表示しない」）。ほかの翻訳の設定には触らない。
+    TranslationConfirm(bool),
+    /// 小窓の注意書きを出すかだけ（小窓の「今後表示しない」）。ほかの翻訳の設定には触らない。
+    TranslationMachineNotice(bool),
+}
+
+/// 翻訳の設定。値は `crate::translate` の一覧で検査した物だけを持つ。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Translation {
+    /// 翻訳を有効にするか。無いとき、真偽でないときは false（通信しない）。
+    pub enabled: bool,
+    pub service: String,
+    /// F5 より前の「無料枠か有料か」。互換のために読むだけで、使わず、書かない
+    /// （F5 からは翻訳のたびに右クリックで選び、それぞれのキーを使う）。
+    pub tier: String,
+    pub model: String,
+    /// 選んだモデルが混雑か回数の上限で通らないとき、その仕事の間だけ別のモデルで送るか。
+    /// 無いとき、真偽でないときは true。保存したモデルは替えない。
+    pub fallback: bool,
+    /// 送る前に件数、文字数、サービスを出して確かめるか。無いとき、真偽でないときは true。
+    pub confirm: bool,
+    /// 結果の小窓に「訳は機械の推測」の注意書きを出すか。無いとき、真偽でないときは true。
+    pub machine_notice: bool,
+}
+
+impl Default for Translation {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            service: translate::DEFAULT_SERVICE.into(),
+            tier: translate::DEFAULT_TIER.into(),
+            model: translate::default_model(translate::DEFAULT_SERVICE).into(),
+            fallback: DEFAULT_TRANSLATION_FALLBACK,
+            confirm: DEFAULT_TRANSLATION_CONFIRM,
+            machine_notice: DEFAULT_TRANSLATION_MACHINE_NOTICE,
+        }
+    }
 }
 
 /// 検査を通った値。不正なキーは既定の値になる。
@@ -91,6 +148,9 @@ pub struct Settings {
     pub splash_ceremony_unlocked: bool,
     /// 右端で折り返すか。無いとき、真偽でないときは false。
     pub wrap_lines: bool,
+    /// ツリー表示のときは左ペインを出さないか。無いとき、真偽でないときは false（出す）。
+    pub hide_targets_in_tree: bool,
+    pub translation: Translation,
 }
 
 /// 同じファイルの判定に使う値。
@@ -145,6 +205,55 @@ fn read_flag(map: &Map<String, Value>, key: &str, fallback: bool) -> bool {
     map.get(key).and_then(Value::as_bool).unwrap_or(fallback)
 }
 
+/// サービスが一覧に無ければ既定のサービス、モデルがそのサービスの一覧に無ければ既定のモデル。
+fn read_translation(map: &Map<String, Value>) -> Translation {
+    let service = listed_value(
+        map,
+        KEY_TRANSLATION_SERVICE,
+        &translate::SERVICES,
+        translate::DEFAULT_SERVICE,
+    );
+    let tier = listed_value(map, KEY_TRANSLATION_TIER, &translate::TIERS, translate::DEFAULT_TIER);
+    let model = listed_value(
+        map,
+        KEY_TRANSLATION_MODEL,
+        translate::models(&service),
+        translate::default_model(&service),
+    );
+    // サービスかモデルが無い・一覧の外なら、既定へ戻した上で無効にする。
+    // 利用者が選んでいない組（壊れた値から戻した既定のサービスやモデル）で送らない。
+    // 無料枠か有料か（translationTier）は F5 から使わないので、有効かの判定に入れない
+    let stored = |key: &str, allowed: &[&str]| {
+        map.get(key)
+            .and_then(Value::as_str)
+            .is_some_and(|value| allowed.contains(&value))
+    };
+    let chosen = stored(KEY_TRANSLATION_SERVICE, &translate::SERVICES)
+        && stored(KEY_TRANSLATION_MODEL, translate::models(&service));
+    Translation {
+        enabled: chosen && read_flag(map, KEY_TRANSLATION_ENABLED, false),
+        service,
+        tier,
+        model,
+        // 有効かの判定には使わない（無い設定ファイルは F3 より前の物）
+        fallback: read_flag(map, KEY_TRANSLATION_FALLBACK, DEFAULT_TRANSLATION_FALLBACK),
+        // 有効かの判定には使わない（無い設定ファイルは F4 より前の物）
+        confirm: read_flag(map, KEY_TRANSLATION_CONFIRM, DEFAULT_TRANSLATION_CONFIRM),
+        // 有効かの判定には使わない（無い設定ファイルは F5 より前の物）
+        machine_notice: read_flag(map, KEY_TRANSLATION_MACHINE_NOTICE, DEFAULT_TRANSLATION_MACHINE_NOTICE),
+    }
+}
+
+/// `translationTier` は書かない（あれば元の値のまま残る。F5 より前の版が読んでも壊れない）。
+fn put_translation(map: &mut Map<String, Value>, translation: &Translation) {
+    map.insert(KEY_TRANSLATION_ENABLED.into(), translation.enabled.into());
+    map.insert(KEY_TRANSLATION_SERVICE.into(), translation.service.as_str().into());
+    map.insert(KEY_TRANSLATION_MODEL.into(), translation.model.as_str().into());
+    map.insert(KEY_TRANSLATION_FALLBACK.into(), translation.fallback.into());
+    map.insert(KEY_TRANSLATION_CONFIRM.into(), translation.confirm.into());
+    map.insert(KEY_TRANSLATION_MACHINE_NOTICE.into(), translation.machine_notice.into());
+}
+
 fn validated(map: &Map<String, Value>) -> Settings {
     Settings {
         theme: listed_value(map, KEY_THEME, &THEMES, DEFAULT_THEME),
@@ -155,6 +264,8 @@ fn validated(map: &Map<String, Value>) -> Settings {
         splash_ceremony: read_flag(map, KEY_SPLASH_CEREMONY, true),
         splash_ceremony_unlocked: read_flag(map, KEY_SPLASH_CEREMONY_UNLOCKED, false),
         wrap_lines: read_flag(map, KEY_WRAP_LINES, false),
+        hide_targets_in_tree: read_flag(map, KEY_HIDE_TARGETS_IN_TREE, false),
+        translation: read_translation(map),
     }
 }
 
@@ -207,6 +318,16 @@ fn apply(map: &mut Map<String, Value>, change: &Change) {
         }
         Change::WrapLines(wrap) => {
             map.insert(KEY_WRAP_LINES.into(), (*wrap).into());
+        }
+        Change::HideTargetsInTree(hide) => {
+            map.insert(KEY_HIDE_TARGETS_IN_TREE.into(), (*hide).into());
+        }
+        Change::Translation(translation) => put_translation(map, translation),
+        Change::TranslationConfirm(confirm) => {
+            map.insert(KEY_TRANSLATION_CONFIRM.into(), (*confirm).into());
+        }
+        Change::TranslationMachineNotice(shown) => {
+            map.insert(KEY_TRANSLATION_MACHINE_NOTICE.into(), (*shown).into());
         }
     }
 }
@@ -496,6 +617,265 @@ mod tests {
         assert_eq!(written["wrapLines"], json!(false));
         assert_eq!(written["theme"], json!("light"));
         assert_eq!(written["unknown"], json!(1));
+    }
+
+    #[test]
+    fn hide_targets_in_tree_defaults_to_shown_and_ignores_bad_values() {
+        assert!(!validated(&map(json!({}))).hide_targets_in_tree);
+        assert!(validated(&map(json!({"hideTargetsInTree": true}))).hide_targets_in_tree);
+        assert!(!validated(&map(json!({"hideTargetsInTree": false}))).hide_targets_in_tree);
+        for bad in [json!("yes"), json!(1), json!(null), json!({})] {
+            assert!(!validated(&map(json!({ "hideTargetsInTree": bad }))).hide_targets_in_tree);
+        }
+    }
+
+    #[test]
+    fn hide_targets_in_tree_change_writes_only_its_key() {
+        let mut written = map(json!({"theme": "light", "wrapLines": true, "unknown": 1}));
+        apply(&mut written, &Change::HideTargetsInTree(true));
+        assert_eq!(written["hideTargetsInTree"], json!(true));
+        assert!(validated(&written).hide_targets_in_tree);
+        apply(&mut written, &Change::HideTargetsInTree(false));
+        assert_eq!(written["hideTargetsInTree"], json!(false));
+        assert_eq!(written["theme"], json!("light"));
+        assert_eq!(written["wrapLines"], json!(true));
+        assert_eq!(written["unknown"], json!(1));
+    }
+
+    #[test]
+    fn translation_settings_default_off() {
+        let none = validated(&map(json!({}))).translation;
+        assert!(!none.enabled);
+        assert_eq!(none, Translation::default());
+        assert_eq!(none.service, "gemini");
+        assert_eq!(none.tier, "free");
+        assert_eq!(none.model, "gemini-3.1-flash-lite");
+        assert!(none.fallback);
+        assert!(none.confirm);
+        assert!(none.machine_notice);
+    }
+
+    /// F5: 無料枠か有料か（translationTier）は互換のために読むだけ。無くても、一覧の外でも有効のまま。
+    #[test]
+    fn translation_tier_is_read_but_not_required() {
+        let without = json!({
+            "translationEnabled": true,
+            "translationService": "gemini",
+            "translationModel": "gemini-3.1-flash-lite"
+        });
+        let read = validated(&map(without.clone())).translation;
+        assert!(read.enabled);
+        assert_eq!(read.tier, "free");
+        for (stored, expected) in [(json!("paid"), "paid"), (json!("Paid"), "free"), (json!(1), "free")] {
+            let mut value = without.clone();
+            value.as_object_mut().expect("object").insert("translationTier".into(), stored.clone());
+            let read = validated(&map(value)).translation;
+            assert!(read.enabled, "{stored}");
+            assert_eq!(read.tier, expected, "{stored}");
+        }
+    }
+
+    #[test]
+    fn translation_machine_notice_defaults_on_and_ignores_bad_values() {
+        assert!(validated(&map(json!({}))).translation.machine_notice);
+        for (stored, expected) in [(json!(false), false), (json!(true), true), (json!("no"), true), (json!(0), true), (json!(null), true)] {
+            let read = validated(&map(json!({ "translationMachineNotice": stored.clone() }))).translation;
+            assert_eq!(read.machine_notice, expected, "{stored}");
+        }
+    }
+
+    #[test]
+    fn translation_machine_notice_change_writes_only_its_key() {
+        let before = json!({
+            "theme": "light",
+            "translationEnabled": true,
+            "translationService": "gemini",
+            "translationTier": "paid",
+            "translationModel": "gemini-3.6-flash",
+            "translationConfirm": false
+        });
+        let mut written = map(before.clone());
+        apply(&mut written, &Change::TranslationMachineNotice(false));
+        let mut expected = before.clone();
+        expected.as_object_mut().expect("object").insert("translationMachineNotice".into(), json!(false));
+        assert_eq!(Value::Object(written.clone()), expected);
+        let read = validated(&written).translation;
+        assert!(!read.machine_notice);
+        assert!(read.enabled);
+        assert!(!read.confirm);
+        apply(&mut written, &Change::TranslationMachineNotice(true));
+        assert!(validated(&written).translation.machine_notice);
+    }
+
+    #[test]
+    fn translation_fallback_defaults_on_and_ignores_bad_values() {
+        let good = json!({
+            "translationEnabled": true,
+            "translationService": "gemini",
+            "translationTier": "free",
+            "translationModel": "gemini-3.1-flash-lite"
+        });
+        // F3 より前の設定ファイル（キーが無い）は入で、有効のまま
+        let read = validated(&map(good.clone())).translation;
+        assert!(read.fallback);
+        assert!(read.enabled);
+        for (stored, expected) in [(json!(false), false), (json!(true), true), (json!("no"), true), (json!(0), true), (json!(null), true)] {
+            let mut value = good.clone();
+            value.as_object_mut().expect("object").insert("translationFallback".into(), stored.clone());
+            let read = validated(&map(value)).translation;
+            assert_eq!(read.fallback, expected, "{stored}");
+            assert!(read.enabled, "{stored}");
+        }
+    }
+
+    #[test]
+    fn translation_settings_bad_values_fall_back() {
+        let valid = validated(&map(json!({
+            "translationEnabled": true,
+            "translationService": "gemini",
+            "translationTier": "paid",
+            "translationModel": "gemini-3.6-flash"
+        })))
+        .translation;
+        assert!(valid.enabled);
+        assert_eq!(valid.tier, "paid");
+        assert_eq!(valid.model, "gemini-3.6-flash");
+        for bad in [json!("yes"), json!(1), json!(null), json!({}), json!([])] {
+            let read = validated(&map(json!({
+                "translationEnabled": bad.clone(),
+                "translationService": bad.clone(),
+                "translationTier": bad.clone(),
+                "translationModel": bad
+            })))
+            .translation;
+            assert_eq!(read, Translation::default());
+        }
+        // 一覧の外のモデルは URL のパスに入るので既定へ戻す。
+        // 利用者の選んでいない既定の組で送らないよう、有効の印は落とす（T2 の Codex レビューの指摘）
+        let outside = validated(&map(json!({
+            "translationEnabled": true,
+            "translationService": "openai",
+            "translationTier": "Paid",
+            "translationModel": "../../v1/evil"
+        })))
+        .translation;
+        assert!(!outside.enabled);
+        assert_eq!(outside.service, "gemini");
+        assert_eq!(outside.tier, "free");
+        assert_eq!(outside.model, "gemini-3.1-flash-lite");
+    }
+
+    #[test]
+    fn broken_translation_choice_turns_translation_off() {
+        let good = json!({
+            "translationEnabled": true,
+            "translationService": "gemini",
+            "translationTier": "paid",
+            "translationModel": "gemini-3.6-flash"
+        });
+        assert!(validated(&map(good.clone())).translation.enabled);
+        // どれか 1 つが無い、型が違う、一覧の外なら無効（translationTier は F5 から判定に使わない）
+        for key in ["translationService", "translationModel"] {
+            for broken in [None, Some(json!(1)), Some(json!("removed"))] {
+                let mut value = good.clone();
+                let object = value.as_object_mut().expect("object");
+                match broken {
+                    None => {
+                        object.remove(key);
+                    }
+                    Some(bad) => {
+                        object.insert(key.into(), bad);
+                    }
+                }
+                let read = validated(&map(value)).translation;
+                assert!(!read.enabled, "{key} broken but still enabled");
+            }
+        }
+    }
+
+    #[test]
+    fn translation_change_writes_only_its_key() {
+        let mut written = map(json!({"theme": "light", "wrapLines": true, "unknown": 1, "translationTier": "paid"}));
+        let translation = Translation {
+            enabled: true,
+            service: "gemini".into(),
+            // 構造体の値は書かない。ファイルにあった値（paid）がそのまま残る
+            tier: "free".into(),
+            model: "gemini-3.5-flash-lite".into(),
+            fallback: false,
+            confirm: false,
+            machine_notice: false,
+        };
+        apply(&mut written, &Change::Translation(translation.clone()));
+        assert_eq!(
+            Value::Object(written.clone()),
+            json!({
+                "theme": "light",
+                "wrapLines": true,
+                "unknown": 1,
+                "translationEnabled": true,
+                "translationService": "gemini",
+                "translationTier": "paid",
+                "translationModel": "gemini-3.5-flash-lite",
+                "translationFallback": false,
+                "translationConfirm": false,
+                "translationMachineNotice": false
+            })
+        );
+        assert_eq!(validated(&written).translation, Translation { tier: "paid".into(), ..translation.clone() });
+
+        // 無い設定ファイルには translationTier を足さない
+        let mut fresh = Map::new();
+        apply(&mut fresh, &Change::Translation(translation));
+        assert!(!fresh.contains_key("translationTier"));
+    }
+
+    #[test]
+    fn translation_confirm_defaults_on_and_ignores_bad_values() {
+        assert!(validated(&map(json!({}))).translation.confirm);
+        let good = json!({
+            "translationEnabled": true,
+            "translationService": "gemini",
+            "translationTier": "free",
+            "translationModel": "gemini-3.1-flash-lite"
+        });
+        // F4 より前の設定ファイル（キーが無い）は確かめを出し、有効のまま
+        let read = validated(&map(good.clone())).translation;
+        assert!(read.confirm);
+        assert!(read.enabled);
+        for (stored, expected) in [(json!(false), false), (json!(true), true), (json!("no"), true), (json!(0), true), (json!(null), true), (json!({}), true)] {
+            let mut value = good.clone();
+            value.as_object_mut().expect("object").insert("translationConfirm".into(), stored.clone());
+            let read = validated(&map(value)).translation;
+            assert_eq!(read.confirm, expected, "{stored}");
+            assert!(read.enabled, "{stored}");
+        }
+    }
+
+    #[test]
+    fn translation_confirm_change_writes_only_its_key() {
+        let before = json!({
+            "theme": "light",
+            "unknown": 1,
+            "translationEnabled": true,
+            "translationService": "gemini",
+            "translationTier": "paid",
+            "translationModel": "gemini-3.6-flash",
+            "translationFallback": false
+        });
+        let mut written = map(before.clone());
+        apply(&mut written, &Change::TranslationConfirm(false));
+        let mut expected = before.clone();
+        expected.as_object_mut().expect("object").insert("translationConfirm".into(), json!(false));
+        assert_eq!(Value::Object(written.clone()), expected);
+        let read = validated(&written).translation;
+        assert!(!read.confirm);
+        assert!(read.enabled);
+        assert!(!read.fallback);
+        assert_eq!(read.model, "gemini-3.6-flash");
+        // 戻すと確かめを出す
+        apply(&mut written, &Change::TranslationConfirm(true));
+        assert!(validated(&written).translation.confirm);
     }
 
     #[test]

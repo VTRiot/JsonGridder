@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Mode } from '$lib/types'
-import { format, t } from '../../src/i18n'
+import { format, setLanguage, t } from '../../src/i18n'
 import { buildMenus, splitAccessKey } from '../../src/shell/menuModel'
 import { chooseView, findTableTargets } from '../../src/shell/tableTargets'
 import { documentName, windowTitle } from '../../src/shell/title'
@@ -48,25 +48,26 @@ describe('findTableTargets', () => {
 })
 
 describe('chooseView', () => {
-  it('ルートの配列は表、対象なし', () => {
-    expect(open('[1]')).toEqual({ mode: Mode.table, tableTarget: [] })
+  it('ルートの配列はツリー、表の対象は文書全体', () => {
+    expect(open('[1]')).toEqual({ mode: Mode.tree, tableTarget: [] })
   })
 
-  it('ルートのオブジェクトは候補の先頭を対象に表', () => {
-    expect(open('{"a":{"rows":[{"x":1}]}}')).toEqual({ mode: Mode.table, tableTarget: ['a', 'rows'] })
+  it('ルートのオブジェクトはツリー、表の対象に候補の先頭を入れておく', () => {
+    expect(open('{"a":{"rows":[{"x":1}]}}')).toEqual({ mode: Mode.tree, tableTarget: ['a', 'rows'] })
   })
 
-  it('候補が無いオブジェクトと値はツリー', () => {
-    expect(open('{"a":[]}').mode).toBe(Mode.tree)
-    expect(open('1').mode).toBe(Mode.tree)
+  it('候補が無いオブジェクトと値はツリー、対象なし', () => {
+    expect(open('{"a":[]}')).toEqual({ mode: Mode.tree, tableTarget: [] })
+    expect(open('1')).toEqual({ mode: Mode.tree, tableTarget: [] })
   })
 
-  it('テキストに限る文書はテキスト', () => {
-    expect(open('{', 'allModes', true).mode).toBe(Mode.text)
+  it('テキストに限る文書はテキスト、対象なし', () => {
+    expect(open('{', 'allModes', true)).toEqual({ mode: Mode.text, tableTarget: [] })
+    expect(open('{"a":[{"x":1}]}', 'allModes', true)).toEqual({ mode: Mode.text, tableTarget: [] })
   })
 
   it('10 MB 超の文書はテキストへ入らない', () => {
-    expect(open('[1]', 'noTextMode').mode).toBe(Mode.table)
+    expect(open('[1]', 'noTextMode').mode).toBe(Mode.tree)
     expect(open('{"a":1}', 'noTextMode').mode).toBe(Mode.tree)
   })
 
@@ -99,7 +100,15 @@ describe('format', () => {
 })
 
 describe('menuModel', () => {
-  const state = { splashCeremony: false, splashCeremonyUnlocked: false, wrapLines: false }
+  const edit = { undo: true, redo: false, cut: true, copy: true, paste: true, findReplace: true, openInTextEditor: false }
+  const state = {
+    splashCeremony: false,
+    splashCeremonyUnlocked: false,
+    wrapLines: false,
+    hideTargetsInTree: false,
+    translationSettings: true,
+    edit
+  }
   const groups = buildMenus({ language: 'ja', theme: 'light', recent: [], ...state })
   const recentChildren = (recent: string[]) =>
     buildMenus({ language: 'ja', theme: 'light', recent, ...state })[0].entries[1].children ?? []
@@ -124,9 +133,61 @@ describe('menuModel', () => {
     expect(splitAccessKey('印なし')).toEqual({ label: '印なし' })
   })
 
-  it('3 つのメニューが辞書から作られる', () => {
-    expect(groups.map(({ accessKey }) => accessKey)).toEqual(['F', 'O', 'H'])
+  it('4 つのメニューが辞書から作られる（Edit は File と Options の間）', () => {
+    expect(groups.map(({ accessKey }) => accessKey)).toEqual(['F', 'E', 'O', 'H'])
     expect(groups.flatMap(({ entries }) => entries).every(({ label }) => !label.startsWith('app.'))).toBe(true)
+  })
+
+  it('Edit の項目が発注書のとおり（最後にテキストで開く）、群の間に区切り', () => {
+    const entries = groups[1].entries
+    expect(entries.map(({ command }) => command)).toEqual([
+      'undo',
+      'redo',
+      'cut',
+      'copy',
+      'paste',
+      'findReplace',
+      'openInTextEditor'
+    ])
+    expect(entries.map(({ separatorBefore }) => separatorBefore === true)).toEqual([false, false, true, false, false, true, true])
+    expect(entries.map(({ shortcut }) => shortcut)).toEqual([
+      'Ctrl+Z',
+      'Ctrl+Shift+Z',
+      'Ctrl+X',
+      'Ctrl+C',
+      'Ctrl+V',
+      'Ctrl+H',
+      undefined
+    ])
+    expect(entries.at(-1)?.label).toBe('テキストで開く(O)')
+  })
+
+  it('Edit の項目の押せる状態は渡された状態のまま', () => {
+    expect(groups[1].entries.map(({ enabled }) => enabled)).toEqual([true, false, true, true, true, true, false])
+    const none = {
+      undo: false,
+      redo: false,
+      cut: false,
+      copy: false,
+      paste: false,
+      findReplace: false,
+      openInTextEditor: false
+    }
+    const closed = buildMenus({ language: 'ja', theme: 'light', recent: [], ...state, edit: none })[1].entries
+    expect(closed.every(({ enabled }) => !enabled)).toBe(true)
+  })
+
+  it('メニューの名前と Edit の項目のアクセスキーが重ならない', () => {
+    for (const language of ['ja', 'en']) {
+      setLanguage(language)
+      const menus = buildMenus({ language, theme: 'light', recent: [], ...state })
+      const groupKeys = menus.map(({ accessKey }) => accessKey)
+      expect(new Set(groupKeys).size, `${language}: ${groupKeys.join()}`).toBe(groupKeys.length)
+      const keys = menus[1].entries.map(({ accessKey }) => accessKey)
+      expect(keys.every((key) => key !== undefined), `${language}: ${keys.join()}`).toBe(true)
+      expect(new Set(keys).size, `${language}: ${keys.join()}`).toBe(keys.length)
+    }
+    setLanguage('ja')
   })
 
   it('File の項目が発注書のとおり', () => {
@@ -140,7 +201,7 @@ describe('menuModel', () => {
   })
 
   it('テーマと言語は今の値に印が付く', () => {
-    const [language, dark, light] = groups[1].entries
+    const [language, dark, light] = groups[2].entries
     expect(dark.checked).toBe(false)
     expect(light.checked).toBe(true)
     expect(language.children?.map(({ checked }) => checked)).toEqual([true, false])
@@ -148,12 +209,45 @@ describe('menuModel', () => {
 
   it('右端で折り返すはチェックの項目で、今の値に印が付く', () => {
     const find = (wrapLines: boolean) =>
-      buildMenus({ language: 'ja', theme: 'light', recent: [], ...state, wrapLines })[1].entries.find(
+      buildMenus({ language: 'ja', theme: 'light', recent: [], ...state, wrapLines })[2].entries.find(
         ({ command }) => command === 'wrapLines'
       )
     expect(find(false)?.role).toBe('menuitemcheckbox')
     expect(find(false)?.checked).toBe(false)
     expect(find(true)?.checked).toBe(true)
     expect(find(true)?.label).toBe('右端で折り返す(W)')
+  })
+
+  it('ツリーのときは左ペインを出さないはチェックの項目で、今の値に印が付く（D13）', () => {
+    const find = (hideTargetsInTree: boolean) =>
+      buildMenus({ language: 'ja', theme: 'light', recent: [], ...state, hideTargetsInTree })[2].entries.find(
+        ({ command }) => command === 'hideTargetsInTree'
+      )
+    expect(find(false)?.role).toBe('menuitemcheckbox')
+    expect(find(false)?.checked).toBe(false)
+    expect(find(true)?.checked).toBe(true)
+    expect(find(true)?.label).toBe('ツリーのときは左ペインを出さない(P)')
+    expect(find(true)?.accessKey).toBe('P')
+  })
+
+  it('Options の最後に翻訳の設定の入口があり、設定の口が無ければ押せない', () => {
+    const find = (translationSettings: boolean) =>
+      buildMenus({ language: 'ja', theme: 'light', recent: [], ...state, translationSettings })[2].entries.at(-1)
+    expect(find(true)?.command).toBe('translationSettings')
+    expect(find(true)?.label).toBe('翻訳の設定(R)...')
+    expect(find(true)?.enabled).toBe(true)
+    expect(find(true)?.separatorBefore).toBe(true)
+    expect(find(false)?.enabled).toBe(false)
+  })
+
+  it('Options のアクセスキーが重ならない', () => {
+    for (const language of ['ja', 'en']) {
+      setLanguage(language)
+      const keys = buildMenus({ language, theme: 'light', recent: [], ...state, splashCeremonyUnlocked: true })[2].entries.map(
+        ({ accessKey }) => accessKey
+      )
+      expect(new Set(keys).size, `${language}: ${keys.join()}`).toBe(keys.length)
+    }
+    setLanguage('ja')
   })
 })

@@ -337,6 +337,95 @@ svelte-jsoneditor: このフォルダの出どころと、上流からの変更�
       列の見出しの掴み（jse-column-resizer）の div を 2 か所に足した。
     試験: ../../tests/browser/wrap.mjs
 
+  26. 外から呼ぶ編集の命令（step10_001 S4）
+    src/lib/types.ts、src/lib/components/JSONEditor.svelte、
+    src/lib/components/modes/JSONEditorRoot.svelte、treemode/TreeMode.svelte、
+    tablemode/TableMode.svelte、textmode/TextMode.svelte
+    アプリの Edit メニューから切り取り、コピー、貼り付け、検索と置換を呼ぶ口が上流に無いので、
+    公開の関数 runEditCommand('cut' | 'copy' | 'paste' | 'findReplace') を足した。型は EditCommand。
+    新しい動作は作らず、今の表示の既存の関数を呼ぶだけ: ツリーと表は handleCut(true)（Ctrl+X）、
+    handleCopy(true)（Ctrl+C）、handlePasteFromMenu（右クリックの貼り付け）、openFind(true)（Ctrl+H）。
+    テキストは findReplace だけで handleOpenReplace（Ctrl+H）。テキストの切り取り、コピー、貼り付けは
+    CodeMirror の選択に効くので、呼び手が直接行う（false を返す）。
+    JSONEditorRoot は門番の答えを待つ間（checkingMode）は何も走らせず false を返す。undo と表示の
+    ボタンと同じく、待つ間に表示が替わりうるため。JSONEditor は呼んだ後に flushSync する。
+    上流の既定の動作は変えない（呼ばなければ何も起きない）。
+    試験: ../../tests/unit/editor/editCommand.test.ts、../../tests/browser/shell.mjs の Edit メニューの群
+
+  27. 表の見出しの 2 段（step10_001 S6）
+    src/lib/components/modes/tablemode/headerRows.ts（新規）、headerRows.test.ts（新規）
+      列のパスの並びから見出しのセルを 2 段に割り付ける純関数 headerRows。長さ 2 以上のパスの列
+      （address.city）は、上の段に先頭のキー（隣り合う同じ先頭の列は colspan で 1 つ）、下の段に
+      残りのパス（3 段以上は点でつなぐ。geo.lat）。長さ 0 と 1 の列は 2 段を通す 1 つのセル。
+      同じ先頭が別の列を挟んで離れて出るときは別の群にする。入れ子の列が無ければ今までと同じ 1 段。
+    src/lib/components/modes/tablemode/TableMode.svelte
+      見出しの行を headerRows で描く。列（columns）、その順、並べ替えと幅のキー（列のパス全体）は
+      変えない。並べ替えのボタン（ColumnHeader）と幅の掴みは、入れ子でない列は通しのセル、入れ子の列は
+      下の段のセルに置く。上の段の群のセルはボタンを持たず、押しても何もしない。行番号の列と更新の列も
+      2 段を通す。上の段と下の段の高さを測り（resizeObserver）、下の段は上の段の真下に貼り付く
+      （--jse-table-header-top-height）。scrollToVertical と scrollTo の見出しの高さ、検索の欄の位置に
+      下の段の高さを足す。セルの描画には触らない。
+    src/lib/components/modes/tablemode/TableMode.scss
+      2 段を通すセルはラベルを縦横の中央、群のセルは中央寄せと下の区切りの線、下の段の sticky の top。
+      検索の欄の top に --jse-table-header-extra-height を足す（1 段のときは 0）。
+    src/lib/components/modes/tablemode/ColumnHeader.svelte
+      prop label を足した。下の段で残りのパスだけを出すため。title と並べ替えは今までどおりパス全体。
+    src/lib/components/__snapshots__/JSONEditor.test.ts.snap
+      入れ子の無い表の見出しは同じ形。{#each}/{#if} の印の注釈と空白だけが 5 行増えた。
+    試験: headerRows.test.ts、../../tests/browser/wrap.mjs の「見出しの 2 段」の群
+
+  28. 列の見出しの列のパス（step10_002 T4）
+    src/lib/components/modes/tablemode/TableMode.svelte
+      列の並べ替えのボタン（ColumnHeader）を持つ見出しのセル 2 か所（通しのセルと、2 段のときの
+      下の段のセル）に属性 data-column-path を足した。値は encodeDataPath(列のパス)で、td の
+      data-path と同じ形（表の対象の要素の中のパス）。アプリが見出しの右クリックでどの列かを知る
+      ためだけに使う。上の段の群のセル、行番号の列、更新の列には付けない。描画、並べ替え、幅、
+      選択、右クリックの上流の動作は変えない。
+    src/lib/components/__snapshots__/JSONEditor.test.ts.snap
+      表の見出しのセルに data-column-path が付いた分だけ変わる。
+    試験: ../../tests/browser/translate.mjs の「見出しの右クリック」の群
+
+  29. ポップアップの置き場所をエディタの見える枠で決める（step10_002 T5）
+    src/lib/components/modals/popup/AbsolutePopupEntry.svelte
+      上流は右クリックのメニューなどを左右（上下）どちらへ開くかを窓の幅と高さ（window.innerWidth、
+      innerHeight）で決める。アプリはエディタを窓より狭い、はみ出しを隠す箱（翻訳の小窓を開いた
+      ときのエディタ）に置くので、右端（下端）の近くで開くとメニューが箱の端で切れた。
+      見える枠を「窓と、エディタを置いた要素（ポップアップの親）の重なり」とし、左右と上下の判定を
+      その枠で行う。どちらの側にも入らないときは、枠の大きさが許す限り枠の中へ寄せる（幅と高さは
+      上流が渡す見積もりの値）。窓より大きい箱では今までどおり。開く、閉じる、キー、フォーカスは
+      変えない。
+    試験: ../../tests/browser/translate.mjs の「小窓を開いたままの右クリックのメニュー」
+
+  30. 右クリックのメニューのサブメニュー（step10_002 F6）
+    上流の右クリックのメニューの項目の種類（button、dropdown-button、separator、row）には、横に開く
+    サブメニューが無い。dropdown-button は「主のボタン＋下に開く別の候補」で、主のボタンは押すと
+    メニューを閉じて何かを実行する。サブメニューの → で開く、← と Esc でサブメニューだけ閉じる、も無い
+    （Esc は AbsolutePopupEntry が窓の捕捉の段階で受け、メニューごと閉じる）。アプリは「日本語に翻訳」の
+    1 項目の横に「有料」「無料」を出すため、次の種類を足した。
+    src/lib/types.ts
+      MenuSubmenu（type: 'submenu'、text、title、className、items: MenuButton[]）を足し、
+      ContextMenuItem の和に入れた。
+    src/lib/typeguards.ts
+      isMenuSubmenu を足した。
+    src/lib/components/controls/contextmenu/ContextMenuSubmenu.svelte、.scss（新規）
+      親のボタン（文字と右向きの印、aria-haspopup="menu"、aria-expanded）。押す、指を載せる、→、
+      Enter で開く。キーと押下で開いたときは先頭の項目へフォーカスを移す。開いた項目の並びは親の右
+      （見える枠に入らず左に入るときは左、下に入らず上に入るときは上。見える枠は AbsolutePopupEntry と
+      同じ「窓とポップアップの親の重なり」）。↓↑ で項目の間を動き端で反対へ回る。← と Esc でサブメニュー
+      だけ閉じて親へフォーカスを戻す（このキーはメニューの矢印の移動とポップアップの Esc へ渡さない）。
+      指が親と並びの外へ出るか、フォーカスが外へ出ると閉じる。項目を押すと、ContextMenuButton と同じく
+      メニューを閉じてから onClick。項目のボタンは ContextMenuButton と同じ重さの CSS（button.class）
+      なので、アプリは className で色を付けられる。開くまで項目の DOM は作らない（矢印の移動に入らない）。
+    src/lib/components/controls/contextmenu/ContextMenu.svelte
+      一番上の項目の並びで isMenuSubmenu を ContextMenuSubmenu で描く。row と column の中には置かない。
+    src/lib/components/modals/popup/AbsolutePopupEntry.svelte
+      Esc の対象が開いたサブメニューの中（[data-jse-submenu] の子孫）なら、ポップアップを閉じない
+      （サブメニューが自分で閉じる）。それ以外の Esc、外の押下、ホイールは今までどおり。
+    上流の既定の項目は submenu を使わないので、アプリが使わなければ動作は変わらない。
+    試験: ../../tests/browser/translate.mjs の「無料枠と有料を選ぶ」「サブメニューのキー」「キーが無いとき」
+    「小窓を開いたままの右クリックのメニュー」、../../tests/browser/contrast.mjs の「翻訳のサブメニューの枠の色」、
+    ../../tests/unit/shell/translate.test.ts の menu_hidden_when_disabled
+
 上流の生成物を置いたもの:
   src/lib/generated/diffSequence.js
     上流の tools/generateDiffSequenceEsm.js と同じ変換で、npm の diff-sequences 29.6.3

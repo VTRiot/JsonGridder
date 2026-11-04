@@ -1,0 +1,55 @@
+/* メニューの行の下のコマンドの行。色は theme.css の役割の変数だけを読む。 */
+.app-command-bar {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 8px;
+  background: var(--app-surface);
+  border-bottom: 1px solid var(--app-border);
+  color: var(--app-text);
+  font: 13px var(--jse-font-family);
+  user-select: none;
+}
+
+.app-command-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: default;
+}
+
+.app-command-button:hover:not([aria-disabled='true']) {
+  background: var(--app-hover);
+}
+
+.app-command-button[aria-disabled='true'] {
+  color: var(--app-text-muted);
+}
+
+.app-command-button:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--app-accent);
+}
+
+.app-command-separator {
+  align-self: stretch;
+  width: 1px;
+  margin: 3px 8px;
+  background: var(--app-border);
+}
+
+/* 主のエディタの上流のメニューの帯は、コマンドの行と殻の切り替えに置き換えた。項目は殻が受けて空の並びを返すので、
+   帯ごと隠す。入れ子の値のモーダルと変換の画面のエディタ（.jse-main の外の dialog）は上流のまま。 */
+.app-editor > .jse-main > .jse-tree-mode > .jse-menu,
+.app-editor > .jse-main > .jse-table-mode > .jse-menu,
+.app-editor > .jse-main > .jse-text-mode > .jse-menu {
+  display: none;
+}

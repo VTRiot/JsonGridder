@@ -131,6 +131,49 @@ export interface JsonScanner {
   scan(text: string): Promise<ScanResult>
 }
 
+/** 文書の中の位置。行と列は 1 から。列は行の頭からの Unicode のスカラー値の数。 */
+export interface TextPosition {
+  line: number
+  column: number
+}
+
+/** 表とツリーに入れない理由のうち、文書の中で最初に見つかったもの（Rust の `Problem`）。 */
+export type Diagnosis =
+  | { kind: 'syntax'; at: TextPosition }
+  | { kind: 'duplicateKey'; key: string; at: TextPosition; first: TextPosition }
+  | { kind: 'reservedKey'; key: string; at: TextPosition }
+  | { kind: 'depthExceeded'; at: TextPosition; limit: number }
+
+/** 警告の帯の理由を取る。表示の切り替えの判定には使わない。入れる文書なら `null`。 */
+export interface JsonDiagnoser {
+  diagnose(text: string): Promise<Diagnosis | null>
+}
+
+/** 開いているファイルのディスクの状態（Rust の `DiskStatus`）。 */
+export type DiskStatus =
+  | { kind: 'Same' }
+  /** `sha256` は今のディスクの中身。同じ変更で 2 度聞かないために覚える。 */
+  | { kind: 'Changed'; sha256: string }
+  | { kind: 'Missing' }
+  | { kind: 'Unreadable'; code: number }
+  /** 文書が無いか、`revision` が今の基準でない。 */
+  | { kind: 'Stale' }
+
+/** テキストで開いた結果（Rust の `TextEditorReply`）。 */
+export type TextEditorReply =
+  | { kind: 'Opened' }
+  /** `.txt` の関連付けが JsonGridder 自身なので開かなかった。 */
+  | { kind: 'SelfAssociated' }
+  | { kind: 'Missing' }
+  | { kind: 'Stale' }
+  | { kind: 'Failed'; code: number }
+
+/** 外のアプリとの間の口（D5）。パスは渡さず、`revision` で基準を指す。 */
+export interface ExternalFiles {
+  diskStatus(revision: number): Promise<DiskStatus>
+  openInTextEditor(revision: number): Promise<TextEditorReply>
+}
+
 /** ファイルに結び付いていない文書の revision。 */
 export const NO_DOCUMENT = 0
 
@@ -160,7 +203,9 @@ export function unpackFrame(frame: ArrayBuffer): { meta: unknown; text: string }
 
 type Invoke = typeof invoke
 
-export function createTauriBackend(call: Invoke = invoke): FileBackend & JsonScanner {
+export function createTauriBackend(
+  call: Invoke = invoke
+): FileBackend & JsonScanner & JsonDiagnoser & ExternalFiles {
   return {
     async open(path, accept) {
       const frame = await call<ArrayBuffer>('open_document', { path, accept })
@@ -172,6 +217,9 @@ export function createTauriBackend(call: Invoke = invoke): FileBackend & JsonSca
     save: (request, text) => call<SaveReply>('save_document', packFrame(request, text)),
     saveBaselineAs: (revision, path, confirm) =>
       call<SaveReply>('save_baseline_as', { request: { revision, path, confirm } }),
-    scan: (text) => call<ScanResult>('scan_text', new TextEncoder().encode(text))
+    scan: (text) => call<ScanResult>('scan_text', new TextEncoder().encode(text)),
+    diagnose: (text) => call<Diagnosis | null>('diagnose_text', new TextEncoder().encode(text)),
+    diskStatus: (revision) => call<DiskStatus>('disk_status', { revision }),
+    openInTextEditor: (revision) => call<TextEditorReply>('open_in_text_editor', { revision })
   }
 }

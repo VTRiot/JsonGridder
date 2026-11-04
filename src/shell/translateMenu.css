@@ -1,0 +1,10 @@
+/* 翻訳の右クリックのサブメニューの枠（F6）。言葉（有料／無料）に、枠ごとの文字の色を添える（色だけに頼らない）。
+   殻のメニュー（列の見出し）と上流のメニュー（セルとツリー）の両方に効く。上流のボタンの color: inherit
+   （class 2 つと要素）に勝つよう :root を重ねる。色の値は theme.css の役割の変数。 */
+:root:root .app-translate-tier-paid {
+  color: var(--app-translate-paid);
+}
+
+:root:root .app-translate-tier-free {
+  color: var(--app-translate-free);
+}

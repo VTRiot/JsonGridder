@@ -13,6 +13,7 @@
     Content,
     ContentErrors,
     ContextMenuItem,
+    EditCommand,
     JSONEditorModalCallback,
     JSONEditorModalProps,
     JSONEditorPropsOptional,
@@ -365,6 +366,20 @@
     refJSONEditorRoot.focus()
 
     flushSync()
+  }
+
+  /**
+   * Run an edit command from outside the editor, for example from an Edit menu of the application.
+   * The current mode runs the same function as its context menu and keyboard shortcut. Returns
+   * false when the mode does not run the command, or while the mode guard has not answered yet.
+   * Text mode only runs findReplace: cut, copy and paste in text mode belong to CodeMirror.
+   */
+  export function runEditCommand(command: EditCommand): boolean {
+    const ran = refJSONEditorRoot.runEditCommand(command)
+
+    flushSync()
+
+    return ran
   }
 
   export async function refresh(): Promise<void> {

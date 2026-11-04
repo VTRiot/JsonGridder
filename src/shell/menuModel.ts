@@ -17,7 +17,21 @@ export type MenuCommand =
   | 'theme:light'
   | 'splashCeremony'
   | 'wrapLines'
+  | 'hideTargetsInTree'
+  | 'translationSettings'
+  | EditMenuCommand
   | `recent:${string}`
+
+/** Edit メニューの命令。`openInTextEditor` は Windows の既定のテキストエディタで開く（D5）。 */
+export const EDIT_MENU_COMMANDS = ['undo', 'redo', 'cut', 'copy', 'paste', 'findReplace', 'openInTextEditor'] as const
+export type EditMenuCommand = (typeof EDIT_MENU_COMMANDS)[number]
+
+export function isEditMenuCommand(command: MenuCommand): command is EditMenuCommand {
+  return (EDIT_MENU_COMMANDS as readonly string[]).includes(command)
+}
+
+/** Edit メニューの項目を押せるか。メニューを開くときの今の状態。 */
+export type EditMenuState = Record<EditMenuCommand, boolean>
 
 export interface MenuState {
   language: string
@@ -28,6 +42,12 @@ export interface MenuState {
   splashCeremonyUnlocked: boolean
   /** 右端で折り返す。表示だけの設定。 */
   wrapLines: boolean
+  /** ツリー表示のときは左ペインを出さない（D13）。表示だけの設定。 */
+  hideTargetsInTree: boolean
+  /** 翻訳の設定の項目を押せるか（Tauri の外には設定の口が無い）。 */
+  translationSettings: boolean
+  /** Edit メニューの項目を押せるか。 */
+  edit: EditMenuState
 }
 
 export interface MenuEntry {
@@ -40,6 +60,8 @@ export interface MenuEntry {
   checked?: boolean
   shortcut?: string
   children?: MenuEntry[]
+  /** 項目の前に区切りの線を引く。 */
+  separatorBefore?: boolean
 }
 
 export interface MenuGroup {
@@ -87,8 +109,18 @@ export function buildMenus({
   recent,
   splashCeremony,
   splashCeremonyUnlocked,
-  wrapLines
+  wrapLines,
+  hideTargetsInTree,
+  translationSettings,
+  edit
 }: MenuState): MenuGroup[] {
+  const editEntry = (key: string, command: EditMenuCommand, shortcut?: string, separatorBefore = false): MenuEntry =>
+    entry(key, {
+      command,
+      enabled: edit[command],
+      ...(shortcut !== undefined ? { shortcut } : {}),
+      ...(separatorBefore ? { separatorBefore } : {})
+    })
   return [
     {
       ...splitAccessKey(t('app.menu.file')),
@@ -98,6 +130,20 @@ export function buildMenus({
         entry('app.menu.save', { command: 'save', shortcut: 'Ctrl+S' }),
         entry('app.menu.saveAs', { command: 'saveAs', shortcut: 'Ctrl+Shift+S' }),
         entry('app.menu.exit', { command: 'exit' })
+      ]
+    },
+    {
+      // キーの案内は今の表示の右クリックとキーと同じ（上流のキーの扱い）
+      ...splitAccessKey(t('app.menu.edit')),
+      entries: [
+        editEntry('app.menu.undo', 'undo', 'Ctrl+Z'),
+        editEntry('app.menu.redo', 'redo', 'Ctrl+Shift+Z'),
+        editEntry('app.menu.cut', 'cut', 'Ctrl+X', true),
+        editEntry('app.menu.copy', 'copy', 'Ctrl+C'),
+        editEntry('app.menu.paste', 'paste', 'Ctrl+V'),
+        editEntry('app.menu.findReplace', 'findReplace', 'Ctrl+H', true),
+        // キーは割り当てない（上流にも殻にも無い命令）
+        editEntry('app.menu.openInTextEditor', 'openInTextEditor', undefined, true)
       ]
     },
     {
@@ -111,9 +157,20 @@ export function buildMenus({
         radio('app.menu.dark', 'theme:dark', theme === 'dark'),
         radio('app.menu.light', 'theme:light', theme === 'light'),
         entry('app.menu.wrapLines', { command: 'wrapLines', role: 'menuitemcheckbox', checked: wrapLines }),
+        entry('app.menu.hideTargetsInTree', {
+          command: 'hideTargetsInTree',
+          role: 'menuitemcheckbox',
+          checked: hideTargetsInTree
+        }),
         ...(splashCeremonyUnlocked
           ? [entry('app.menu.splashCeremony', { command: 'splashCeremony', role: 'menuitemcheckbox', checked: splashCeremony })]
-          : [])
+          : []),
+        // 翻訳の設定のダイアログを開く。通信はしない（設定とキーを読み書きするだけ）
+        entry('app.menu.translationSettings', {
+          command: 'translationSettings',
+          enabled: translationSettings,
+          separatorBefore: true
+        })
       ]
     },
     {

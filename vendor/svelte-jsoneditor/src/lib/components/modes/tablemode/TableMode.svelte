@@ -9,6 +9,7 @@
     ContentErrors,
     ContextMenuItem,
     DocumentState,
+    EditCommand,
     History,
     HistoryItem,
     JSONEditorContext,
@@ -165,6 +166,9 @@
   import JSONValue from '../treemode/JSONValue.svelte'
   import { isTreeHistoryItem } from 'svelte-jsoneditor'
   import { columnWidthKey, columnWidths, setColumnWidth, wrapLines } from './tableLayout.js'
+  import { headerRows } from './headerRows.js'
+  import { MAX_HEADER_NAME_CHARACTERS } from '$lib/constants.js'
+  import { truncate } from '$lib/utils/stringUtils.js'
 
   const debug = createDebug('jsoneditor:TableMode')
   const { openAbsolutePopup, closeAbsolutePopup } =
@@ -304,6 +308,24 @@
   // the gutter column, the data columns and the refresh column: the spacer rows must span all of
   // them, else the search box background stops short of the last column
   $: tableColumnCount = 1 + columns.length + (showRefreshButton ? 1 : 0)
+
+  // JsonGridder: the header in two rows when a column is nested (address > city). The columns and
+  // their paths stay as they are; only the header cells are laid out (headerRows.ts).
+  $: header = headerRows(columns)
+  $: twoHeaderRows = header.rowCount === 2
+  // measured heights of the two header rows: the bottom row sticks below the top row, and scrolling
+  // and the search box leave room for the whole header
+  let headerTopHeight: number | undefined
+  let headerBottomHeight: number | undefined
+  $: headerExtraHeight = twoHeaderRows ? (headerBottomHeight ?? defaultItemHeight) : 0
+
+  function handleResizeHeaderTop(element: Element) {
+    headerTopHeight = element.getBoundingClientRect().height
+  }
+
+  function handleResizeHeaderBottom(element: Element) {
+    headerBottomHeight = element.getBoundingClientRect().height
+  }
 
   // modalOpen is true when one of the modals is open.
   // This is used to track whether the editor still has focus
@@ -1203,7 +1225,11 @@
       }
     }
 
-    const offset = -Math.max(searchBoxHeight + 2 * defaultItemHeight, viewPortRect.height / 4)
+    // JsonGridder: the second header row (headerExtraHeight) also covers the top of the view
+    const offset = -Math.max(
+      searchBoxHeight + 2 * defaultItemHeight + headerExtraHeight,
+      viewPortRect.height / 4
+    )
 
     if (elem) {
       return new Promise((resolve) => {
@@ -1235,7 +1261,7 @@
     const top = calculateAbsolutePosition(path, columns, itemHeightsCache, defaultItemHeight)
     const bottom = top + (itemHeightsCache[rowIndex] || defaultItemHeight)
 
-    const headerHeight = defaultItemHeight
+    const headerHeight = defaultItemHeight + headerExtraHeight // JsonGridder: two header rows
     const viewPortRect = refContents.getBoundingClientRect()
     const viewPortTop = scrollTop
     const viewPortBottom = scrollTop + viewPortRect.height - headerHeight
@@ -1537,6 +1563,25 @@
 
   function handleRequestRepair() {
     onChangeMode(Mode.text)
+  }
+
+  /**
+   * An edit command from outside (an Edit menu). The same functions as Ctrl+X, Ctrl+C, the paste
+   * of the context menu and Ctrl+H.
+   */
+  export function runEditCommand(command: EditCommand): boolean {
+    if (command === 'cut') {
+      handleCut(true)
+    } else if (command === 'copy') {
+      handleCopy(true)
+    } else if (command === 'paste') {
+      handlePasteFromMenu()
+    } else if (command === 'findReplace') {
+      openFind(true)
+    } else {
+      return false
+    }
+    return true
   }
 
   function handleCut(indent: boolean) {
@@ -2213,7 +2258,10 @@
       />
     </label>
     {#if containsValidArray}
-      <div class="jse-search-box-container">
+      <div
+        class="jse-search-box-container"
+        style:--jse-table-header-extra-height={twoHeaderRows ? headerExtraHeight + 'px' : undefined}
+      >
         <SearchBox
           {json}
           {documentState}
@@ -2239,7 +2287,11 @@
         <table class="jse-table-main">
           <tbody>
             <tr class="jse-table-row jse-table-row-header">
-              <th class="jse-table-cell jse-table-cell-header">
+              <th
+                class="jse-table-cell jse-table-cell-header"
+                class:jse-table-cell-header-span={twoHeaderRows}
+                rowspan={twoHeaderRows ? header.rowCount : undefined}
+              >
                 {#if !isEmpty(groupedValidationErrors?.root)}
                   {@const validationError = mergeValidationErrors(
                     [],
@@ -2252,24 +2304,44 @@
                   {/if}
                 {/if}
               </th>
-              {#each columns as column}
-                {@const width = widthOf(column)}
-                <th
-                  class="jse-table-cell jse-table-cell-header"
-                  class:jse-column-sized={width !== undefined}
-                  style:--jse-column-width={width !== undefined ? width + 'px' : undefined}
-                >
-                  <ColumnHeader path={column} {sortedColumn} {readOnly} onSort={onSortByHeader} />
-                  <!-- svelte-ignore a11y-no-static-element-interactions -->
-                  <div
-                    class="jse-column-resizer"
-                    aria-hidden="true"
-                    on:mousedown={(event) => handleColumnResizeStart(event, column)}
-                  ></div>
-                </th>
+              {#each header.top as cell}
+                {#if cell.kind === 'column'}
+                  {@const column = cell.column}
+                  {@const width = widthOf(column)}
+                  <th
+                    class="jse-table-cell jse-table-cell-header"
+                    class:jse-table-cell-header-span={twoHeaderRows}
+                    class:jse-column-sized={width !== undefined}
+                    style:--jse-column-width={width !== undefined ? width + 'px' : undefined}
+                    rowspan={twoHeaderRows ? header.rowCount : undefined}
+                    data-column-path={encodeDataPath(column)}
+                  >
+                    <ColumnHeader path={column} {sortedColumn} {readOnly} onSort={onSortByHeader} />
+                    <!-- svelte-ignore a11y-no-static-element-interactions -->
+                    <div
+                      class="jse-column-resizer"
+                      aria-hidden="true"
+                      on:mousedown={(event) => handleColumnResizeStart(event, column)}
+                    ></div>
+                  </th>
+                {:else}
+                  <th
+                    class="jse-table-cell jse-table-cell-header jse-table-cell-header-group"
+                    colspan={cell.colspan}
+                    use:resizeObserver={handleResizeHeaderTop}
+                  >
+                    <div class="jse-column-group" title={cell.label}>
+                      {truncate(cell.label, MAX_HEADER_NAME_CHARACTERS)}
+                    </div>
+                  </th>
+                {/if}
               {/each}
               {#if showRefreshButton}
-                <th class="jse-table-cell jse-table-cell-header">
+                <th
+                  class="jse-table-cell jse-table-cell-header"
+                  class:jse-table-cell-header-span={twoHeaderRows}
+                  rowspan={twoHeaderRows ? header.rowCount : undefined}
+                >
                   <RefreshColumnHeader
                     count={Array.isArray(json) ? json.length : 0}
                     {maxSampleCount}
@@ -2279,6 +2351,40 @@
                 </th>
               {/if}
             </tr>
+            {#if twoHeaderRows}
+              <tr
+                class="jse-table-row jse-table-row-header jse-table-row-header-bottom"
+                style:--jse-table-header-top-height={headerTopHeight !== undefined
+                  ? headerTopHeight + 'px'
+                  : undefined}
+              >
+                {#each header.bottom as cell}
+                  {@const column = cell.column}
+                  {@const width = widthOf(column)}
+                  <th
+                    class="jse-table-cell jse-table-cell-header jse-table-cell-header-nested"
+                    class:jse-column-sized={width !== undefined}
+                    style:--jse-column-width={width !== undefined ? width + 'px' : undefined}
+                    use:resizeObserver={handleResizeHeaderBottom}
+                    data-column-path={encodeDataPath(column)}
+                  >
+                    <ColumnHeader
+                      path={column}
+                      label={cell.label}
+                      {sortedColumn}
+                      {readOnly}
+                      onSort={onSortByHeader}
+                    />
+                    <!-- svelte-ignore a11y-no-static-element-interactions -->
+                    <div
+                      class="jse-column-resizer"
+                      aria-hidden="true"
+                      on:mousedown={(event) => handleColumnResizeStart(event, column)}
+                    ></div>
+                  </th>
+                {/each}
+              </tr>
+            {/if}
             <tr
               class="jse-table-invisible-start-section"
               class:jse-search-box-background={showSearch}

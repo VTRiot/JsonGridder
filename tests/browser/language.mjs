@@ -6,7 +6,8 @@ const DUMMY = {
   'app.menu.file': 'ダミー(&F)',
   'app.menu.options': 'ダミーオプション(&O)',
   'app.menu.help': 'ダミーヘルプ(&H)',
-  'editor.modeTable': 'ダミー表',
+  'app.view.table': 'ダミー表',
+  'editor.expandAll': 'ダミー展開',
   'cm.Find': 'ダミー検索'
 }
 
@@ -17,6 +18,17 @@ const docText = (page) => page.evaluate(() => window.fixture.text())
 const open = (page, path, options = {}) =>
   page.evaluate(([target, opts]) => window.fixture.open(target, opts), [path, options])
 const menubar = (page) => page.locator('.app-menubar-button').allInnerTexts()
+// 主の画面の命令はコマンドの行（S4）
+const COMMAND = (name) => `.app-command-button[data-command="${name}"]`
+const commandDisabled = (page, name) =>
+  page.evaluate((selector) => document.querySelector(selector)?.getAttribute('aria-disabled') === 'true', COMMAND(name))
+
+/** 開いて表へ移る。正しい文書は既定でツリーで開く（Step10 D3）。 */
+async function openTable(page, path, options = {}) {
+  const outcome = await open(page, path, options)
+  await h.switchTo(page, '表')
+  return outcome
+}
 
 async function shellPage(browser, base, query = '?shell') {
   const { page, problems } = await h.openPage(browser, `${base}${query}`)
@@ -54,7 +66,7 @@ const visibleJapanese = (page) =>
 async function testSwitchKeepsDocument(browser, base) {
   const name = '言語の切り替え'
   const { page, problems } = await shellPage(browser, base)
-  await open(page, '/first.json')
+  await openTable(page, '/first.json')
   await page.getByText('x', { exact: true }).dblclick({ timeout: h.STATE_TIMEOUT_MS }).catch(() => {})
   await page.keyboard.press('Control+A')
   await page.keyboard.type('edited')
@@ -65,7 +77,7 @@ async function testSwitchKeepsDocument(browser, base) {
   await page.evaluate(() => {
     document.querySelector('.jse-main').__sentinel = 'same-element'
   })
-  const undoBefore = await page.locator('.jse-undo').isDisabled()
+  const undoBefore = await commandDisabled(page, 'undo')
 
   await chooseLanguage(page, 'オプション', '言語', 'English')
   const reachedEnglish = await h.reaches(page, () => document.documentElement.lang === 'en')
@@ -81,16 +93,18 @@ async function testSwitchKeepsDocument(browser, base) {
     `${name}: 編集画面を作り直さない`,
     await page.evaluate(() => document.querySelector('.jse-main')?.__sentinel === 'same-element')
   )
-  record(h, `${name}: undo の履歴が残る`, (await page.locator('.jse-undo').isDisabled()) === undoBefore && !undoBefore)
-  await page.click('.jse-undo')
+  record(h, `${name}: undo の履歴が残る`, (await commandDisabled(page, 'undo')) === undoBefore && !undoBefore)
+  await page.click(COMMAND('undo'))
   record(h, `${name}: 切り替えの後も undo が効く`, (await docText(page)).includes('x') && !(await docText(page)).includes('edited'))
-  await page.click('.jse-redo')
+  await page.click(COMMAND('redo'))
   record(h, `${name}: redo も効く`, (await docText(page)).includes('edited'))
 
   const labels = (await menubar(page)).join()
   record(h, `${name}: 英語のメニュー`, /^File.*,Options.*,Help/.test(labels), labels)
-  const modes = (await page.locator('.jse-group-button').allInnerTexts()).map((s) => s.trim()).join()
-  record(h, `${name}: 英語の表示切り替え`, modes === 'text,tree,table', modes)
+  const modes = (await page.locator('.app-view-switch-button').allInnerTexts()).map((s) => s.trim()).join()
+  record(h, `${name}: 英語の表示切り替え`, modes === 'Tree,Table', modes)
+  const switchLabel = await page.locator('.app-view-switch').getAttribute('aria-label')
+  record(h, `${name}: 切り替えの名前も英語`, switchLabel === 'View', String(switchLabel))
   const leftover = await visibleJapanese(page)
   record(h, `${name}: 英語の画面に日本語が残らない`, leftover.length === 0, JSON.stringify(leftover))
 
@@ -105,7 +119,7 @@ async function testSwitchKeepsDocument(browser, base) {
 async function testSwitchWhileEditingCell(browser, base) {
   const name = '言語の切り替え 編集中'
   const { page, problems } = await shellPage(browser, base)
-  await open(page, '/first.json')
+  await openTable(page, '/first.json')
   await page.getByText('x', { exact: true }).dblclick({ timeout: h.STATE_TIMEOUT_MS }).catch(() => {})
   await page.keyboard.press('Control+A')
   await page.keyboard.type('typing')
@@ -131,12 +145,15 @@ async function testDummyDictionary(browser, base) {
   }, DUMMY)
   const labels = (await menubar(page)).join()
   record(h, `${name}: ダミーのメニュー名が出る`, labels.startsWith('ダミー') && labels.includes('ダミーヘルプ'), labels)
-  const modes = (await page.locator('.jse-group-button').allInnerTexts()).map((s) => s.trim())
-  record(h, `${name}: エディタの文言も替わる`, modes.includes('ダミー表'), modes.join())
+  const modes = (await page.locator('.app-view-switch-button').allInnerTexts()).map((s) => s.trim())
+  record(h, `${name}: 切り替えの文言も替わる`, modes.includes('ダミー表'), modes.join())
+  // コマンドの行の title は上流の項目の title（エディタの辞書）
+  const expandTitle = await page.locator(COMMAND('expandAll')).getAttribute('title')
+  record(h, `${name}: エディタの文言も替わる`, expandTitle === 'ダミー展開', String(expandTitle))
   const lang = await page.evaluate(() => document.documentElement.lang)
   record(h, `${name}: html の lang が替わる`, lang === 'xx', lang)
-  const inherited = await page.locator('.app-menubar-button').nth(3).count()
-  record(h, `${name}: 4 つ目のメニューは無い（欠けは基準の言語、キー名で補う）`, inherited === 0)
+  const inherited = await page.locator('.app-menubar-button').nth(4).count()
+  record(h, `${name}: 5 つ目のメニューは無い（欠けは基準の言語、キー名で補う）`, inherited === 0)
   await page.evaluate(() => window.fixture.setLanguage('ja'))
   record(h, `${name}: 戻せる`, (await menubar(page))[0] === 'ファイル(F)')
   await page.close()
@@ -149,7 +166,7 @@ async function testContentNotTranslated(browser, base) {
   await page.evaluate(() => {
     window.fixture.addFile('/words.json', '[{"Sort":"Sort","Cancel":"Cancel","New item":"New item"}]')
   })
-  await open(page, '/words.json')
+  await openTable(page, '/words.json')
   const before = await docText(page)
   const cellsBefore = await page.locator('td, th').allInnerTexts()
   await page.evaluate(() => window.fixture.setLanguage('en'))
@@ -287,7 +304,7 @@ async function testTablePasteNoModal(browser, base) {
       }
     })
   })
-  await open(page, '/first.json')
+  await openTable(page, '/first.json')
   await page.getByText('x', { exact: true }).click({ timeout: h.STATE_TIMEOUT_MS })
   await page.click('.jse-context-menu-pointer', { timeout: h.STATE_TIMEOUT_MS })
   await page.locator('.jse-contextmenu button', { hasText: '貼り付け' }).first().click({ timeout: h.STATE_TIMEOUT_MS })

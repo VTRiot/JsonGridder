@@ -69,7 +69,10 @@ $column-resizer-width: 6px;
   .jse-search-box-container {
     position: relative;
     height: 0;
-    top: calc(defaults.$line-height + 2 * defaults.$padding);
+    // JsonGridder: below the second header row too, when the header has two rows
+    top: calc(
+      defaults.$line-height + 2 * defaults.$padding + var(--jse-table-header-extra-height, 0px)
+    );
     margin-right: calc(defaults.$padding + 20px);
     margin-left: defaults.$padding;
     text-align: right;
@@ -161,6 +164,33 @@ $column-resizer-width: 6px;
             }
 
             // FIXME: border and/or border shadow?
+
+            // JsonGridder: two header rows (headerRows.ts). A column that is not nested spans both
+            // rows with its name in the middle, both ways. A group (the parent key) sits over its
+            // nested columns, which stick below the top row.
+            &.jse-table-cell-header-span {
+              vertical-align: middle;
+
+              > :global(.jse-column-header) {
+                justify-content: center;
+                // the same room on both sides, so the name sits in the middle
+                padding-left: defaults.$padding;
+              }
+            }
+
+            &.jse-table-cell-header-group {
+              text-align: center;
+              box-shadow: inset 0 -1px 0 defaults.$table-header-background-highlight;
+
+              .jse-column-group {
+                padding: styles.$padding-half defaults.$padding styles.$padding-half
+                  styles.$padding-half;
+              }
+            }
+
+            &.jse-table-cell-header-nested {
+              top: var(--jse-table-header-top-height, defaults.$line-height);
+            }
           }
 
           &.jse-table-cell-gutter {

@@ -9,9 +9,10 @@ use tauri::{AppHandle, Manager};
 use crate::file::frame::{pack, unpack};
 use crate::file::open::Accept;
 use crate::file::replace::SystemReplacer;
-use crate::file::scan::{ScanResult, scan};
-use crate::file::session::{FileState, SaveReply, SaveRequest};
+use crate::file::scan::{Problem, ScanResult, diagnose, scan};
+use crate::file::session::{DiskStatus, FileState, SaveReply, SaveRequest};
 use crate::settings;
+use crate::shell::external::{self, SystemLauncher, TextEditorReply};
 use crate::settings::store::Change;
 
 async fn on_worker<T: Send + 'static>(
@@ -81,4 +82,31 @@ pub async fn save_baseline_as(
 pub async fn scan_text(app: AppHandle, request: Request<'_>) -> Result<ScanResult, String> {
     let text = raw_body(&request)?;
     on_worker(app, move |_| scan(&text)).await
+}
+
+/// 開いているファイルが外で変わったか（窓に戻ったときの見張り、D5）。聞くかどうかの判断にだけ使う。
+#[tauri::command]
+pub async fn disk_status(app: AppHandle, revision: u64) -> Result<DiskStatus, String> {
+    on_worker(app, move |state| state.disk_status(revision)).await
+}
+
+/// 基準のファイルを Windows の既定のテキストエディタで開く（D5）。パスは画面から受けない。
+#[tauri::command]
+pub async fn open_in_text_editor(app: AppHandle, revision: u64) -> Result<TextEditorReply, String> {
+    on_worker(app, move |state| {
+        let own = std::env::current_exe().ok();
+        external::open_in_text_editor(state, revision, &SystemLauncher, own.as_deref())
+    })
+    .await
+}
+
+/// 表とツリーに入れない最初の理由と位置（警告の帯に出す）。引数は UTF-8 の本文そのもの。
+/// 表示の切り替えの判定には使わない（判定は `scan_text` と画面の門番が持つ）。
+#[tauri::command]
+pub async fn diagnose_text(
+    app: AppHandle,
+    request: Request<'_>,
+) -> Result<Option<Problem>, String> {
+    let text = raw_body(&request)?;
+    on_worker(app, move |_| diagnose(&text)).await
 }

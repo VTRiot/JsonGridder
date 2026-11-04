@@ -4,6 +4,7 @@ mod file;
 mod settings;
 mod shell;
 mod splash;
+mod translate;
 mod window;
 
 use file::session::FileState;
@@ -62,6 +63,7 @@ pub fn run() {
         .manage(ShellState::default())
         .manage(WindowMemory::default())
         .manage(Splash::default())
+        .manage(translate::TranslateState::default())
         .invoke_handler(tauri::generate_handler![
             app_ready,
             commands::open_document,
@@ -69,11 +71,15 @@ pub fn run() {
             commands::save_document,
             commands::save_baseline_as,
             commands::scan_text,
+            commands::diagnose_text,
+            commands::disk_status,
+            commands::open_in_text_editor,
             shell::get_startup,
             shell::shell_subscribe,
             shell::pick_open,
             shell::pick_save,
             shell::ask,
+            shell::ask_checked,
             shell::set_document_state,
             shell::save_finished,
             shell::request_open,
@@ -85,7 +91,17 @@ pub fn run() {
             settings::set_theme,
             settings::set_language,
             settings::set_splash_ceremony,
-            settings::set_wrap_lines
+            settings::set_wrap_lines,
+            settings::set_hide_targets_in_tree,
+            translate::translation_settings,
+            translate::set_translation_settings,
+            translate::set_translation_confirm,
+            translate::set_translation_machine_notice,
+            translate::set_translation_key,
+            translate::clear_translation_key,
+            translate::move_translation_key,
+            translate::translate_start,
+            translate::translate_cancel
         ])
         .on_window_event(|window, event| match event {
             // 起動画面の窓の動きは、文書や窓の位置の処理に回さない
